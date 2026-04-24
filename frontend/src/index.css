@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Inter", sans-serif;
+  background-color: #f9f7fb;
+}
+
+/* reusable styles */
+.btn-primary {
+  @apply bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-sm hover:shadow-md transition;
+}
