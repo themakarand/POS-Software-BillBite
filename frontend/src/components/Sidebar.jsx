@@ -1,366 +1,116 @@
-import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import logo from "../assets/logo.jpg";
+import { useEffect, useState } from "react";
 
+// ── Icons ──────────────────────────────────────────────────────────────────
+const Icons = {
+  Home: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  Menu: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+  Orders: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/></svg>,
+  Inventory: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>,
+  Reports: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  Settings: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+  Kitchen: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>,
+  Logout: () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  ChevronLeft: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+};
+
+// ── Nav config — add route path for each item ──────────────────────────────
 const NAV_ITEMS = [
-  {
-    label: "POS",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-    ),
-  },
-  {
-    label: "Menu",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="8" y1="6" x2="21" y2="6"/>
-        <line x1="8" y1="12" x2="21" y2="12"/>
-        <line x1="8" y1="18" x2="21" y2="18"/>
-        <line x1="3" y1="6" x2="3.01" y2="6"/>
-        <line x1="3" y1="12" x2="3.01" y2="12"/>
-        <line x1="3" y1="18" x2="3.01" y2="18"/>
-      </svg>
-    ),
-  },
-  {
-    label: "Orders",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-      </svg>
-    ),
-  },
-  {
-    label: "Inventory",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="7" width="20" height="14" rx="2"/>
-        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
-        <line x1="12" y1="12" x2="12" y2="16"/>
-        <line x1="10" y1="14" x2="14" y2="14"/>
-      </svg>
-    ),
-  },
-  {
-    label: "Reports",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-    ),
-  },
-  {
-    label: "Settings",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-    ),
-  },
-  {
-    label: "Kitchen",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 2v6a6 6 0 0 0 12 0V2"/>
-        <path d="M6 8h12"/>
-        <path d="M12 14v8"/>
-        <path d="M9 22h6"/>
-      </svg>
-    ),
-  },
+  { id: "pos",       label: "POS",       Icon: Icons.Home,      path: "/pos" },
+  { id: "menu",      label: "Menu",      Icon: Icons.Menu,      path: "/menu" },
+  { id: "orders",    label: "Orders",    Icon: Icons.Orders,    path: "/orders" },
+  { id: "inventory", label: "Inventory", Icon: Icons.Inventory, path: "/inventory" },
+  { id: "reports",   label: "Reports",   Icon: Icons.Reports,   path: "/reports" },
+  { id: "settings",  label: "Settings",  Icon: Icons.Settings,  path: "/settings" },
+  { id: "kitchen",   label: "Kitchen",   Icon: Icons.Kitchen,   path: "/kitchen" },
 ];
 
-/**
- * Sidebar Component
- *
- * Props:
- *  - activePage : string       — highlighted nav item (e.g. "POS")
- *  - onNavigate : fn(label)    — called when a nav item is clicked
- *  - onLogout   : fn()         — clears token + redirects to /login
- *
- *  - user       : object       — comes from your auth flow:
- *      After POST /auth/login your backend returns { token, user }
- *      Save user in Context / Zustand / localStorage and pass it here.
- *      Shape: { name: "Divya Goswami", email: "...", role: "admin" }
- *      The name and initials in the sidebar footer render from user.name.
- */
-export default function Sidebar({ activePage = "POS", onNavigate, user, onLogout }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [active, setActive] = useState(activePage);
+export default function Sidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [user, setUser] = useState({ name: "Divya Goswami", initials: "DG" });
 
-  const handleNav = (label) => {
-    setActive(label);
-    if (onNavigate) onNavigate(label);
-  };
+  // ── Read user from localStorage ──────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      const name = stored.name || stored.username || stored.email || "User";
+      const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+      setUser({ name, initials });
+    } catch { }
+  }, []);
 
   const handleLogout = () => {
+    localStorage.removeItem("user");
     localStorage.removeItem("token");
-    if (onLogout) onLogout();
+    navigate("/login");
   };
 
-  const initials = user?.name
-    ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-    : "DG";
-
-  const displayName = user?.name || "Divya Goswami";
+  // Active item = whichever path matches current URL
+  const activeId = NAV_ITEMS.find(n => location.pathname.startsWith(n.path))?.id ?? "pos";
 
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
-
-        .sidebar {
-          font-family: 'DM Sans', sans-serif;
-          width: ${collapsed ? "72px" : "240px"};
-          min-height: 100vh;
-          background: #ffffff;
-          border-right: 1px solid #f0eaf8;
-          display: flex;
-          flex-direction: column;
-          padding: 20px 12px;
-          transition: width 0.25s ease;
-          overflow: hidden;
-          position: relative;
-          box-sizing: border-box;
-        }
-
-        .sidebar-logo {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 4px 8px 24px 8px;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        /* Place your logo file at /public/logo.png */
-        .logo-img {
-          width: ${collapsed ? "36px" : "140px"};
-          height: 40px;
-          object-fit: contain;
-          object-position: left center;
-          transition: width 0.25s ease;
-          display: block;
-        }
-
-        .nav-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-          flex: 1;
-        }
-
-        .nav-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 11px 12px;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: background 0.15s, color 0.15s;
-          color: #6b7280;
-          font-size: 15px;
-          font-weight: 500;
-          white-space: nowrap;
-          position: relative;
-        }
-
-        .nav-item:hover {
-          background: #faf5ff;
-          color: #9333ea;
-        }
-
-        .nav-item.active {
-          background: #f3e8ff;
-          color: #9333ea;
-          font-weight: 600;
-        }
-
-        .nav-item svg {
-          flex-shrink: 0;
-        }
-
-        .nav-label {
-          opacity: ${collapsed ? 0 : 1};
-          transition: opacity 0.2s;
-          pointer-events: none;
-        }
-
-        .sidebar-footer {
-          border-top: 1px solid #f3f4f6;
-          padding-top: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .user-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 8px 12px;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: background 0.15s;
-          white-space: nowrap;
-        }
-
-        .user-row:hover {
-          background: #faf5ff;
-        }
-
-        .avatar {
-          width: 34px;
-          height: 34px;
-          background: #f3e8ff;
-          color: #9333ea;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 13px;
-          font-weight: 700;
-          flex-shrink: 0;
-        }
-
-        .user-name {
-          font-size: 14px;
-          font-weight: 500;
-          color: #1a1a1a;
-          opacity: ${collapsed ? 0 : 1};
-          transition: opacity 0.2s;
-        }
-
-        .logout-btn {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 9px 12px;
-          border-radius: 12px;
-          cursor: pointer;
-          color: #6b7280;
-          font-size: 14px;
-          font-weight: 500;
-          transition: background 0.15s, color 0.15s;
-          white-space: nowrap;
-          background: none;
-          border: none;
-          width: 100%;
-          text-align: left;
-        }
-
-        .logout-btn:hover {
-          background: #fff1f2;
-          color: #ef4444;
-        }
-
-        .logout-label {
-          opacity: ${collapsed ? 0 : 1};
-          transition: opacity 0.2s;
-        }
-
-        .collapse-btn {
-          position: absolute;
-          top: 22px;
-          right: -12px;
-          width: 24px;
-          height: 24px;
-          background: #fff;
-          border: 1.5px solid #e9d5ff;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          color: #9333ea;
-          z-index: 10;
-          transition: background 0.15s;
-          box-shadow: 0 1px 4px rgba(147,51,234,0.1);
-        }
-
-        .collapse-btn:hover {
-          background: #f3e8ff;
-        }
-
-        /* Tooltip for collapsed state */
-        .nav-item .tooltip {
-          display: none;
-          position: absolute;
-          left: 60px;
-          background: #1a1a1a;
-          color: #fff;
-          font-size: 12px;
-          padding: 5px 10px;
-          border-radius: 6px;
-          white-space: nowrap;
-          pointer-events: none;
-          z-index: 100;
-        }
-
-        ${collapsed ? `
-          .nav-item:hover .tooltip { display: block; }
-          .user-row:hover .tooltip { display: block; }
-        ` : ""}
-      `}</style>
-
-      <aside className="sidebar">
-        {/* Collapse toggle */}
-        <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            {collapsed
-              ? <polyline points="9 18 15 12 9 6"/>
-              : <polyline points="15 18 9 12 15 6"/>
-            }
-          </svg>
-        </button>
-
+    <aside
+      className="flex flex-col justify-between py-5 px-3 flex-shrink-0"
+      style={{ width: 220, backgroundColor: "#FFFFFF", borderRight: "1px solid #F0E9FF", height: "100vh" }}
+    >
+      <div>
         {/* Logo */}
-        <div className="sidebar-logo" onClick={() => handleNav("POS")}>
-          <img
-            src="/logo.png"
-            alt="BillBite Logo"
-            className="logo-img"
-          />
-        </div>
-
-        {/* Nav Items */}
-        <ul className="nav-list">
-          {NAV_ITEMS.map((item) => (
-            <li
-              key={item.label}
-              className={`nav-item ${active === item.label ? "active" : ""}`}
-              onClick={() => handleNav(item.label)}
-            >
-              {item.icon}
-              <span className="nav-label">{item.label}</span>
-              {collapsed && <span className="tooltip">{item.label}</span>}
-            </li>
-          ))}
-        </ul>
-
-        {/* Footer */}
-        <div className="sidebar-footer">
-          <div className="user-row">
-            <div className="avatar">{initials}</div>
-            <span className="user-name">{displayName}</span>
-            {collapsed && <span className="tooltip">{displayName}</span>}
-          </div>
-          <button className="logout-btn" onClick={handleLogout}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-            <span className="logout-label">Log Out</span>
+        <div className="flex items-center gap-2 px-2 mb-7">
+          <img src={logo} alt="BILLBITE logo" className="h-8 w-auto object-contain" />
+          <span className="text-base font-bold tracking-tight" style={{ color: "#1A1A1A" }}>BILLBITE</span>
+          <button className="ml-auto opacity-40 hover:opacity-70 transition-opacity">
+            <Icons.ChevronLeft />
           </button>
         </div>
-      </aside>
-    </>
+
+        {/* Nav items */}
+        <nav className="flex flex-col gap-0.5">
+          {NAV_ITEMS.map(({ id, label, Icon, path }) => {
+            const active = activeId === id;
+            return (
+              <button
+                key={id}
+                onClick={() => navigate(path)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium w-full text-left transition-all"
+                style={{
+                  backgroundColor: active ? "#F3E8FF" : "transparent",
+                  color: active ? "#9333EA" : "#4B5563",
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#FAF5FF"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = active ? "#F3E8FF" : "transparent"; }}
+              >
+                <Icon />
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* User + Logout */}
+      <div>
+        <div className="flex items-center gap-3 px-3 py-2 mb-1">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+            style={{ backgroundColor: "#9333EA" }}
+          >
+            {user.initials}
+          </div>
+          <span className="text-sm font-semibold truncate" style={{ color: "#1A1A1A" }}>{user.name}</span>
+        </div>
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium w-full text-left transition-all"
+          style={{ color: "#EF4444" }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#FEF2F2"; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
+        >
+          <Icons.Logout /> Log Out
+        </button>
+      </div>
+    </aside>
   );
 }

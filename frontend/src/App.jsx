@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
+import MenuPage from "./pages/MenuPage";
+import OrdersPage from "./pages/Orderspage";
 
 export default function App() {
   return (
@@ -11,14 +13,16 @@ export default function App() {
         {/* Default route */}
         <Route path="/" element={<Navigate to="/dashboard" />} />
 
-        {/* Login page (optional, but not used now) */}
+        {/* Optional */}
         <Route path="/login" element={<Login />} />
-
-        {/* Signup page */}
         <Route path="/signup" element={<Signup />} />
 
-        {/* Dashboard (main page) */}
+        {/* Main pages */}
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/menu" element={<MenuPage />} />
+
+        {/* You can add more pages like this */}
+        <Route path="/orders" element={<OrdersPage />} />
 
       </Routes>
     </BrowserRouter>
