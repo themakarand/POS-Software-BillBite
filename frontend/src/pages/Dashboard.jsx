@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import logo from "../assets/logo.jpg";
+import { useState } from "react";
+import Sidebar from "../components/Sidebar";
 
 // ── SVG Icons ──────────────────────────────────────────────────────────────
 const Icons = {
@@ -30,15 +29,6 @@ const Icons = {
 };
 
 // ── Data ───────────────────────────────────────────────────────────────────
-const NAV_ITEMS = [
-  { id: "pos", label: "POS", Icon: Icons.Home },
-  { id: "menu", label: "Menu", Icon: Icons.Menu },
-  { id: "orders", label: "Orders", Icon: Icons.Orders },
-  { id: "inventory", label: "Inventory", Icon: Icons.Inventory },
-  { id: "reports", label: "Reports", Icon: Icons.Reports },
-  { id: "settings", label: "Settings", Icon: Icons.Settings },
-  { id: "kitchen", label: "Kitchen", Icon: Icons.Kitchen },
-];
 
 const CATEGORIES = [
   { id: "all", label: "All", count: 225, emoji: "⊞" },
@@ -100,53 +90,7 @@ const ORDER_STATUS = {
   delivered: { label: "Delivered", bg: "#E0F2FE", text: "#0369A1" },
 };
 
-// ── Sidebar ────────────────────────────────────────────────────────────────
-function Sidebar({ activeNav, setActiveNav, user, onLogout }) {
-  return (
-    <aside className="flex flex-col justify-between py-5 px-3 flex-shrink-0"
-      style={{ width: 220, backgroundColor: "#FFFFFF", borderRight: "1px solid #F0E9FF" }}>
-      <div>
-        {/* Logo */}
-        <div className="flex items-center gap-2 px-2 mb-7">
-          <img src={logo} alt="BILLBITE" className="h-8 w-auto object-contain" />
-          <span className="text-base font-bold tracking-tight" style={{ color: "#1A1A1A" }}>BILLBITE</span>
-          <button className="ml-auto opacity-40 hover:opacity-70"><Icons.ChevronLeft /></button>
-        </div>
-        {/* Nav */}
-        <nav className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map(({ id, label, Icon }) => {
-            const active = activeNav === id;
-            return (
-              <button key={id} onClick={() => setActiveNav(id)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium w-full text-left transition-all"
-                style={{ backgroundColor: active ? "#F3E8FF" : "transparent", color: active ? "#9333EA" : "#4B5563" }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.backgroundColor = "#FAF5FF"; }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.backgroundColor = active ? "#F3E8FF" : "transparent"; }}>
-                <Icon />
-                {label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-      {/* User + Logout */}
-      <div>
-        <div className="flex items-center gap-3 px-3 py-2 mb-1">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-            style={{ backgroundColor: "#9333EA" }}>{user.initials}</div>
-          <span className="text-sm font-semibold truncate" style={{ color: "#1A1A1A" }}>{user.name}</span>
-        </div>
-        <button onClick={onLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium w-full transition-all"
-          style={{ color: "#EF4444" }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#FEF2F2"; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}>
-          <Icons.Logout /> Log Out
-        </button>
-      </div>
-    </aside>
-  );
-}
+
 
 // ── Delivery View ──────────────────────────────────────────────────────────
 function DeliveryView() {
@@ -602,34 +546,11 @@ function TakeAwayView() {
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const [activeNav, setActiveNav] = useState("pos");
   const [orderMode, setOrderMode] = useState("delivery"); // "dinein" | "takeaway" | "delivery"
-  const [user, setUser] = useState({ name: "Divya Goswami", initials: "DG" });
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const name = parsed.name || parsed.username || parsed.email || "User";
-        const initials = name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-        setUser({ name, initials });
-      }
-    } catch { }
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-      <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} user={user} onLogout={handleLogout} />
+      <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top mode switcher */}

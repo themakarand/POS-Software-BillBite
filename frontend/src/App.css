@@ -1,3 +1,93 @@
+/* ═══════════════════════════════════════════════════════════════════
+   GLOBAL APPEARANCE SYSTEM
+   Controlled by Appearance Settings page via data-theme / CSS vars.
+   Storage key: "billbite_appearance"
+═══════════════════════════════════════════════════════════════════ */
+
+/* ── Light theme (default) ───────────────────────────────────────── */
+:root {
+  --app-bg:           #fdf4ff;
+  --surface:          #ffffff;
+  --surface-2:        #f9fafb;
+  --border:           #ede9f6;
+  --text-primary:     #111111;
+  --text-secondary:   #6b7280;
+  --text-muted:       #9ca3af;
+  --sidebar-bg:       #ffffff;
+  --sidebar-border:   #f0e9ff;
+  --input-bg:         #ffffff;
+  --input-border:     #e5e7eb;
+  --shadow-sm:        0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md:        0 4px 12px rgba(0,0,0,0.08);
+
+  /* Accent (default: purple) — overridden per selection */
+  --accent:           #9333ea;
+  --accent-light:     #f3e8ff;
+  --accent-border:    rgba(147,51,234,0.3);
+  --accent-bg:        #f3e8ff;
+
+  /* Density */
+  --density-padding:       24px 28px;
+  --density-gap:           20px;
+  --density-font-base:     14px;
+  --density-row-padding:   14px 20px;
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --app-bg:           #0f0f18;
+  --surface:          #1a1a2e;
+  --surface-2:        #151521;
+  --border:           #2d2b45;
+  --text-primary:     #f1f5f9;
+  --text-secondary:   #94a3b8;
+  --text-muted:       #64748b;
+  --sidebar-bg:       #12121e;
+  --sidebar-border:   #2d2b45;
+  --input-bg:         #1e1e30;
+  --input-border:     #3d3b55;
+  --shadow-sm:        0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md:        0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* ── Compact density ─────────────────────────────────────────────── */
+[data-density="compact"] {
+  --density-padding:       14px 18px;
+  --density-gap:           12px;
+  --density-font-base:     13px;
+  --density-row-padding:   8px 14px;
+}
+
+/* ── Accent color overrides ─────────────────────────────────────── */
+[data-accent="green"]  { --accent:#16a34a; --accent-light:#dcfce7; --accent-border:rgba(22,163,74,0.3);  --accent-bg:#dcfce7; }
+[data-accent="blue"]   { --accent:#2563eb; --accent-light:#dbeafe; --accent-border:rgba(37,99,235,0.3);  --accent-bg:#dbeafe; }
+[data-accent="purple"] { --accent:#9333ea; --accent-light:#f3e8ff; --accent-border:rgba(147,51,234,0.3); --accent-bg:#f3e8ff; }
+[data-accent="orange"] { --accent:#f59e0b; --accent-light:#fef3c7; --accent-border:rgba(245,158,11,0.3); --accent-bg:#fef3c7; }
+[data-accent="red"]    { --accent:#ef4444; --accent-light:#fee2e2; --accent-border:rgba(239,68,68,0.3);  --accent-bg:#fee2e2; }
+
+/* ── Apply vars to core page bg/surface ─────────────────────────── */
+body { background: var(--app-bg); transition: background .3s, color .3s; }
+
+/* ── Sidebar dark-mode awareness ────────────────────────────────── */
+[data-theme="dark"] .sidebar-root {
+  background: var(--sidebar-bg) !important;
+  border-color: var(--sidebar-border) !important;
+}
+[data-theme="dark"] .sidebar-root * { color: var(--text-secondary) !important; }
+[data-theme="dark"] .sidebar-root .sidebar-active { color: var(--accent) !important; background: var(--accent-light) !important; }
+
+/* ── Settings panels dark-mode ───────────────────────────────────── */
+[data-theme="dark"] .sp { background: var(--app-bg) !important; }
+[data-theme="dark"] .sp-settings-nav {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .sp-settings-nav h2,
+[data-theme="dark"] .sp-settings-nav p   { color: var(--text-primary) !important; }
+[data-theme="dark"] .sp-nav-btn          { color: var(--text-secondary) !important; }
+[data-theme="dark"] .sp-nav-btn.active   { background: var(--accent-light) !important; color: var(--accent) !important; }
+
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;
