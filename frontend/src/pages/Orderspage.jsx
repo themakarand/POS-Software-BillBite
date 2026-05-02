@@ -2,16 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import API from "../services/api";
 
-const DUMMY = [
-  { _id:"#1001", customer_name:"Floyd Miles",   table:"Table T4", mode:"Dine in",   createdAt:"2023-10-12T10:30:00", status:"Completed", total:850  },
-  { _id:"#1002", customer_name:"Maya Sinha",    table:"Table T2", mode:"Dine in",   createdAt:"2023-10-12T11:30:00", status:"Completed", total:1200 },
-  { _id:"#1003", customer_name:"Robert Fox",    table:"Table T3", mode:"Take Away", createdAt:"2023-10-12T11:45:00", status:"Pending",   total:850  },
-  { _id:"#1004", customer_name:"Abhi Mehta",    table:"Table T6", mode:"Dine in",   createdAt:"2023-10-12T12:45:00", status:"Completed", total:650  },
-  { _id:"#1005", customer_name:"Bessie Cooper", table:"Table T5", mode:"Dine In",   createdAt:"2023-10-12T13:50:00", status:"Completed", total:900  },
-  { _id:"#1006", customer_name:"Davon Lane",    table:"—",        mode:"Delivery",  createdAt:"2023-10-12T14:10:00", status:"Pending",   total:1350 },
-  { _id:"#1007", customer_name:"Priya Sharma",  table:"Table T1", mode:"Dine in",   createdAt:"2023-10-12T14:30:00", status:"Cancelled", total:550  },
-  { _id:"#1008", customer_name:"Rahul Verma",   table:"—",        mode:"Take Away", createdAt:"2023-10-12T15:00:00", status:"Completed", total:700  },
-];
+
 
 const SC = { Completed:"#22c55e", Pending:"#f97316", Cancelled:"#ef4444", Running:"#3b82f6" };
 const sc = s => SC[s] || "#6b7280";
@@ -78,8 +69,8 @@ export default function OrdersPage() {
       const data = r.data;
       if (data.orders) { setOrders(data.orders); setStats(data.stats||stats); }
       else if (Array.isArray(data)) setOrders(data);
-      else setOrders(DUMMY);
-    } catch { setOrders(DUMMY); }
+      else setOrders([]);
+    } catch { setOrders([]); }
     finally { setLoading(false); }
   };
 
@@ -168,7 +159,7 @@ export default function OrdersPage() {
       <div style={S.page}>
 
         {/* Header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:26,flexWrap:"wrap",gap:12}}>
+        <div className="pl-12 md:pl-0" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:26,flexWrap:"wrap",gap:12}}>
           <div>
             <h1 style={{fontSize:24,fontWeight:700,color:"#111",margin:0,marginBottom:4}}>Order History</h1>
             <p style={{fontSize:13,color:"#9ca3af",margin:0}}>Track and manage restaurant orders in one place</p>
@@ -180,7 +171,7 @@ export default function OrdersPage() {
         </div>
 
         {/* Stat Cards */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:14,marginBottom:28}}>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-7">
           {statCards.map(s=>(
             <div key={s.lbl} style={S.card}>
               <div>
@@ -258,14 +249,14 @@ export default function OrdersPage() {
         </div>
 
         {/* Table */}
-        <div style={{background:"#fff",borderRadius:14,overflow:"hidden",border:"1px solid #ede9f6"}}>
+        <div className="overflow-x-auto" style={{background:"#fff",borderRadius:14,border:"1px solid #ede9f6"}}>
           {loading ? (
             <div style={{padding:60,textAlign:"center",color:"#9ca3af",fontSize:14}}>Loading orders…</div>
           ) : filtered.length===0 ? (
             <div style={{padding:60,textAlign:"center",color:"#9ca3af",fontSize:14}}>No orders found.</div>
           ) : (
             <>
-              <table style={S.tbl}>
+              <table style={{...S.tbl, minWidth: 700}}>
                 <thead>
                   <tr>
                     {[["_id","Order ID"],["customer_name","Customer"],["mode","Type"],["createdAt","Date"],["status","Status"],["total","Total"]].map(([f,l])=>(

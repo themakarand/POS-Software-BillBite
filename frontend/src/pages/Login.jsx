@@ -1,7 +1,8 @@
 import { useState } from "react";
 import Welcome from "../assets/welcome.png";
-import logo from "../assets/logo.jpg";
-import { Link } from "react-router-dom";
+import logo from "../assets/logo.png";
+import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -9,10 +10,26 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => setLoading(false), 1800);
+    setError("");
+    try {
+      const res = await axios.post("http://localhost:5000/api/auth/login", {
+        email,
+        password
+      });
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.response?.data || "Login failed. Please check credentials.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,8 +74,10 @@ export default function LoginPage() {
           <div className="flex items-center justify-center mb-6 sm:mb-8">
             <img
               src={logo}
-              alt="BILLBITE Logo"
-              className="h-10 sm:h-12 w-auto object-contain"
+              alt="Pangat Logo"
+              // Using h-24 (96px) for mobile and h-32 (128px) for larger screens
+              // 'object-contain' is fine here as long as 'w-auto' is present
+              className="h-24 sm:h-32 w-auto object-contain"
             />
           </div>
 
@@ -73,6 +92,7 @@ export default function LoginPage() {
             <p className="text-xs sm:text-sm" style={{ color: "#6B7280" }}>
               Login to continue managing your business
             </p>
+            {error && <p className="text-sm font-semibold mt-3" style={{ color: "#EF4444" }}>{error}</p>}
           </div>
 
           {/* Form */}
@@ -244,7 +264,7 @@ export default function LoginPage() {
               className="font-semibold hover:opacity-70 transition-opacity"
               style={{ color: "#9333EA" }}
             >
-            <Link to="/Signup">Sign Up</Link>
+              <Link to="/Signup">Sign Up</Link>
             </a>
           </p>
         </div>

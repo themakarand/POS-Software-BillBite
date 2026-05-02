@@ -9,12 +9,7 @@ const STOCK_KEY = "inv_stock";
 const loadStock = () => { try { return JSON.parse(localStorage.getItem(STOCK_KEY) || "{}"); } catch { return {}; } };
 const saveStock = (s) => localStorage.setItem(STOCK_KEY, JSON.stringify(s));
 
-const DUMMY = [
-  { _id: "d1", name: "Tasty vegetable salad healthy diet", price: 399, category: "Salad" },
-  { _id: "d2", name: "Original cheese meat burger with chips", price: 299, category: "Burger" },
-  { _id: "d3", name: "Taco salvo with chickens grilled", price: 199, category: "Taco" },
-  { _id: "d4", name: "Fresh orange juice with basil seeds", price: 129, category: "Drinks" },
-];
+
 
 function stockStatus(qty) {
   if (qty <= 0) return "Out of Stock";
@@ -61,19 +56,14 @@ export default function InventoryPage() {
     try {
       const res = await axios.get(`${BASE}/products`, authH());
       const data = Array.isArray(res.data) ? res.data : [];
-      setProducts(data.length ? data : DUMMY);
+      setProducts(data);
       const st = loadStock();
       const updated = { ...st };
-      (data.length ? data : DUMMY).forEach(p => { if (updated[p._id] === undefined) updated[p._id] = 30; });
+      data.forEach(p => { if (updated[p._id] === undefined) updated[p._id] = 30; });
       setStock(updated);
       saveStock(updated);
     } catch {
-      setProducts(DUMMY);
-      const st = loadStock();
-      const updated = { ...st };
-      DUMMY.forEach(p => { if (updated[p._id] === undefined) updated[p._id] = 30; });
-      setStock(updated);
-      saveStock(updated);
+      setProducts([]);
     } finally { setLoading(false); }
   };
 
@@ -183,8 +173,8 @@ export default function InventoryPage() {
         .inv-btn-purple:hover{background:#7c3aed;}
         .inv-btn-outline{display:flex;align-items:center;gap:7px;padding:10px 18px;border-radius:10px;background:#fff;color:#374151;border:1px solid #e5e7eb;cursor:pointer;font-size:14px;font-weight:500;white-space:nowrap;transition:all .12s;}
         .inv-btn-outline:hover{border-color:#9333ea;color:#9333ea;}
-        .inv-table-wrap{background:#fff;border-radius:14px;overflow:hidden;border:1px solid #ede9f6;}
-        .inv-tbl{width:100%;border-collapse:collapse;}
+        .inv-table-wrap{background:#fff;border-radius:14px;overflow-x:auto;border:1px solid #ede9f6;}
+        .inv-tbl{width:100%;border-collapse:collapse;min-width:600px;}
         .inv-tbl thead tr{background:#f9fafb;}
         .inv-tbl thead th{padding:14px 20px;text-align:left;font-size:13px;font-weight:600;color:#6b7280;white-space:nowrap;border-bottom:1px solid #f0edf8;}
         .inv-tbl tbody tr{border-bottom:1px solid #faf5ff;transition:background .1s;}
@@ -198,13 +188,13 @@ export default function InventoryPage() {
         .inv-input{width:100%;padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px;color:#374151;outline:none;margin-bottom:12px;transition:border-color .15s;}
         .inv-input:focus{border-color:#9333ea;}
         .inv-empty{padding:60px;text-align:center;color:#9ca3af;font-size:14px;}
-        @media(max-width:800px){.inv-tbl th:nth-child(4),.inv-tbl td:nth-child(4){display:none;}}
-        @media(max-width:600px){.inv-tbl th:nth-child(2),.inv-tbl td:nth-child(2){display:none;}}
+        @media(max-width:800px){/* .inv-tbl th:nth-child(4),.inv-tbl td:nth-child(4){display:none;} */}
+        @media(max-width:600px){/* .inv-tbl th:nth-child(2),.inv-tbl td:nth-child(2){display:none;} */}
       `}</style>
 
       <div className="inv">
         {/* Header */}
-        <div className="inv-header">
+        <div className="inv-header pl-12 md:pl-0">
           <div>
             <h1 style={{ fontSize:26,fontWeight:700,color:"#111",margin:0,marginBottom:4 }}>Inventory Management</h1>
             <p style={{ fontSize:14,color:"#9ca3af",margin:0 }}>Track and update product stock levels</p>

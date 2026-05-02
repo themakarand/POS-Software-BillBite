@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
-import MenuPage from "./pages/MenuPage";
+import MenuPage from "./pages/Menupage";
 import OrdersPage from "./pages/Orderspage";
 import InventoryPage from "./pages/Inventorypage";
 import ReportsPage from "./pages/Reportspage";
@@ -20,23 +20,23 @@ function applyAppearance(prefs) {
       ? window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
       : theme;
 
-  root.setAttribute("data-theme",   resolvedTheme);
+  root.setAttribute("data-theme", resolvedTheme);
   root.setAttribute("data-density", prefs.density || "standard");
-  root.setAttribute("data-accent",  prefs.accent  || "purple");
+  root.setAttribute("data-accent", prefs.accent || "purple");
 
   /* Inject the same live style tag as AppearanceSettings uses */
   let el = document.getElementById("bb-live-appearance");
   if (!el) { el = document.createElement("style"); el.id = "bb-live-appearance"; document.head.appendChild(el); }
 
   const ACCENTS = {
-    green:"#16a34a", blue:"#2563eb", purple:"#9333ea", orange:"#f59e0b", red:"#ef4444"
+    green: "#16a34a", blue: "#2563eb", purple: "#9333ea", orange: "#f59e0b", red: "#ef4444"
   };
   const ACCENTS_LIGHT = {
-    green:"#dcfce7", blue:"#dbeafe", purple:"#f3e8ff", orange:"#fef3c7", red:"#fee2e2"
+    green: "#dcfce7", blue: "#dbeafe", purple: "#f3e8ff", orange: "#fef3c7", red: "#fee2e2"
   };
-  const main  = ACCENTS[prefs.accent]       || "#9333ea";
+  const main = ACCENTS[prefs.accent] || "#9333ea";
   const light = ACCENTS_LIGHT[prefs.accent] || "#f3e8ff";
-  const dark    = resolvedTheme === "dark";
+  const dark = resolvedTheme === "dark";
   const compact = prefs.density === "compact";
 
   el.textContent = `
@@ -81,6 +81,14 @@ function applyAppearance(prefs) {
 }
 
 
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
 export default function App() {
   /* Bootstrap appearance from localStorage on first render */
   useEffect(() => {
@@ -98,20 +106,18 @@ export default function App() {
         {/* Default route */}
         <Route path="/" element={<Navigate to="/dashboard" />} />
 
-        {/* Optional */}
+        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
 
-        {/* Main pages */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/menu" element={<MenuPage />} />
-
-        {/* You can add more pages like this */}
-        <Route path="/orders" element={<OrdersPage />} />
-        <Route path="/inventory" element={<InventoryPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/kitchen" element={<KitchenPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        {/* Protected pages */}
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/menu" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
+        <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+        <Route path="/kitchen" element={<ProtectedRoute><KitchenPage /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

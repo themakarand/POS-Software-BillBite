@@ -1,6 +1,7 @@
 import { useState } from "react";
-import logo from "../assets/logo.jpg";
-import { Link } from "react-router-dom";
+import logo from "../assets/LOGO (2).png";
+import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
 
 export default function SignUpPage() {
   const [name, setName] = useState("");
@@ -8,11 +9,28 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
-  const handleSignUp = (e) => {
+  const handleSignUp = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => setLoading(false), 1800);
+    setError("");
+    try {
+      // Default role to "admin" or let backend handle it
+      await axios.post("http://localhost:5000/api/auth/register", {
+        name,
+        email,
+        password,
+        role: "admin"
+      });
+      // Registration successful, navigate to login
+      navigate("/login");
+    } catch (err) {
+      setError(err.response?.data || "Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputStyle = {
@@ -53,7 +71,7 @@ export default function SignUpPage() {
         <div className="flex items-center justify-center mb-6 sm:mb-8">
           <img
             src={logo}
-            alt="BILLBITE Logo"
+            alt="Pangat Logo"
             className="h-10 sm:h-12 w-auto object-contain"
           />
         </div>
@@ -66,6 +84,7 @@ export default function SignUpPage() {
           <p className="text-xs sm:text-sm" style={{ color: "#6B7280" }}>
             Create an account so you can explore more
           </p>
+          {error && <p className="text-sm font-semibold mt-3" style={{ color: "#EF4444" }}>{error}</p>}
         </div>
 
         {/* Form */}
@@ -189,7 +208,7 @@ export default function SignUpPage() {
             className="font-semibold hover:opacity-70 transition-opacity"
             style={{ color: "#9333EA" }}
           >
-           <Link to="/login">Sign In</Link>
+            <Link to="/login">Sign In</Link>
           </a>
         </p>
 

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
+import api from "../services/api";
 
 // ── SVG Icons ──────────────────────────────────────────────────────────────
 const Icons = {
@@ -30,13 +31,15 @@ const Icons = {
 
 // ── Data ───────────────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  { id: "all", label: "All", count: 225, emoji: "⊞" },
-  { id: "Breakfast", label: "Breakfast", count: 18, emoji: "☕" },
-  { id: "Soups", label: "Soups", count: 6, emoji: "🥣" },
-  { id: "Pasta", label: "Pasta", count: 14, emoji: "🍝" },
-  { id: "Burger", label: "Burger", count: 14, emoji: "🍔" },
-  { id: "Main Course", label: "Main Course", count: 14, emoji: "🍽️" },
+const PREDEFINED_CATEGORIES = [
+  { id: "Breakfast", label: "Breakfast", emoji: "☕" },
+  { id: "Soups", label: "Soups", emoji: "🥣" },
+  { id: "Pasta", label: "Pasta", emoji: "🍝" },
+  { id: "Burger", label: "Burger", emoji: "🍔" },
+  { id: "Main Course", label: "Main Course", emoji: "🍽️" },
+  { id: "Beverages", label: "Beverages", emoji: "🍹" },
+  { id: "Desserts", label: "Desserts", emoji: "🍰" },
+  { id: "Salads", label: "Salads", emoji: "🥗" }
 ];
 
 const MENU_ITEMS = [
@@ -76,12 +79,7 @@ const STATUS_COLORS = {
   cleaning: { dot: "#22C55E", bg: "#F0FDF4", border: "#BBF7D0", text: "#166534" },
 };
 
-// Take Away orders
-const TAKEAWAY_ORDERS = [
-  { id: "TA-001", name: "Rahul Sharma", phone: "98765 43210", items: 3, amount: 720, status: "preparing", time: "12:10 PM" },
-  { id: "TA-002", name: "Priya Mehta", phone: "91234 56789", items: 2, amount: 389, status: "ready", time: "12:25 PM" },
-  { id: "TA-003", name: "Amit Kumar", phone: "99887 76655", items: 5, amount: 1340, status: "pending", time: "12:40 PM" },
-];
+
 
 const ORDER_STATUS = {
   pending: { label: "Pending", bg: "#FEF3C7", text: "#92400E" },
@@ -93,37 +91,95 @@ const ORDER_STATUS = {
 
 
 // ── Delivery View ──────────────────────────────────────────────────────────
-function DeliveryView() {
+function DeliveryView({ activeOrder, setActiveOrder, activeTable, setActiveTable, setOrderMode }) {
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState([]);
   const [section, setSection] = useState("all");
+  const [products, setProducts] = useState([]);
 
-  const addToCart = (item) => {
-    setCart(prev => {
-      const ex = prev.find(c => c.id === item.id);
-      if (ex) return prev.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c);
-      return [...prev, { ...item, qty: 1 }];
-    });
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await api.get("/products");
+      // Map _id to id
+      setProducts(res.data.map(p => ({ ...p, id: p._id })));
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  const addToCart = async (item) => {
+    if (!activeOrder) return alert("Select a table first!");
+    try {
+      const res = await api.post("/orders/add-item", { orderId: activeOrder._id, product: item });
+      setActiveOrder(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const updateQty = (id, delta) => {
-    setCart(prev => prev.map(c => c.id === id ? { ...c, qty: c.qty + delta } : c).filter(c => c.qty > 0));
+    // Note: updating qty is not fully supported in simple backend without custom route,
+    // we can either add another item or skip minus for now.
+    if (delta > 0) addToCart({ _id: id });
   };
 
-  const filtered = MENU_ITEMS.filter(i =>
+  const handlePlaceOrder = async () => {
+    if (!activeOrder) return;
+    try {
+      await api.post("/orders/complete", { orderId: activeOrder._id });
+      setActiveOrder(null);
+      setActiveTable(null);
+      setOrderMode("dinein");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePrintKOT = async () => {
+    if (!activeOrder) return;
+    try {
+      const res = await api.get(`/orders/kot/${activeOrder._id}`);
+      const kot = res.data;
+      let text = `--- KOT ---\nTable: ${kot.table}\n`;
+      kot.items.forEach(i => text += `${i.qty}x ${i.name}\n`);
+      alert(text);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSplitBill = async () => {
+    if (!activeOrder || activeOrder.items.length < 2) return alert("Need at least 2 items to split!");
+    // Basic split implementation: split the first item into a new bill
+    const splitItemIds = [activeOrder.items[0]._id];
+    try {
+      const res = await api.post("/orders/split", { orderId: activeOrder._id, items: splitItemIds });
+      setActiveOrder(res.data.original);
+      alert("Bill split successfully! One item moved to a new order.");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const filtered = products.filter(i =>
     (category === "all" || i.category === category) &&
     i.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0);
-  const sgst = subtotal * 0.025;
-  const cgst = subtotal * 0.025;
-  const total = subtotal + sgst + cgst;
+  const cart = activeOrder?.items || [];
+  const subtotal = activeOrder?.subtotal || 0;
+  const sgst = (activeOrder?.gst || 0) / 2;
+  const cgst = (activeOrder?.gst || 0) / 2;
+  const total = activeOrder?.total || 0;
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden">
       {/* Center */}
-      <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: "#FAF5FF" }}>
+      <div className="flex-1 flex flex-col overflow-visible lg:overflow-hidden" style={{ backgroundColor: "#FAF5FF" }}>
         {/* Top bar */}
         <div className="flex items-center gap-3 px-5 py-3 flex-shrink-0">
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl flex-1"
@@ -149,23 +205,59 @@ function DeliveryView() {
 
         {/* Categories */}
         <div className="flex gap-3 px-5 pb-4 overflow-x-auto flex-shrink-0" style={{ scrollbarWidth: "none" }}>
-          {CATEGORIES.map(cat => {
-            const active = category === cat.id;
-            return (
-              <button key={cat.id} onClick={() => setCategory(cat.id)}
-                className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl flex-shrink-0 transition-all"
-                style={{ backgroundColor: active ? "#F3E8FF" : "#FFFFFF", border: `1.5px solid ${active ? "#DDD6FE" : "#EDE9FE"}`, minWidth: 80 }}>
-                <span style={{ fontSize: 18 }}>{cat.emoji}</span>
-                <span className="text-xs font-semibold" style={{ color: active ? "#9333EA" : "#1A1A1A" }}>{cat.label}</span>
-                <span className="text-xs" style={{ color: "#9CA3AF" }}>{cat.count} Items</span>
-              </button>
-            );
-          })}
+          {(() => {
+            const existingCategoryIds = new Set(PREDEFINED_CATEGORIES.map(c => c.id));
+            const dynamicCategories = [
+              { id: "all", label: "All", emoji: "⊞" },
+              ...PREDEFINED_CATEGORIES
+            ];
+            
+            try {
+              const savedCategories = JSON.parse(localStorage.getItem("custom_categories") || "[]");
+              savedCategories.forEach(cat => {
+                if (!existingCategoryIds.has(cat)) {
+                  existingCategoryIds.add(cat);
+                  dynamicCategories.push({
+                    id: cat,
+                    label: cat,
+                    emoji: "🍲"
+                  });
+                }
+              });
+            } catch (e) {}
+            
+            // Add any missing categories from products dynamically
+            products.forEach(p => {
+              if (p.category && !existingCategoryIds.has(p.category)) {
+                existingCategoryIds.add(p.category);
+                dynamicCategories.push({
+                  id: p.category,
+                  label: p.category,
+                  emoji: "🍲" // Generic food emoji for custom categories
+                });
+              }
+            });
+
+            return dynamicCategories.map(cat => {
+              const active = category === cat.id;
+              const realCount = cat.id === "all" ? products.length : products.filter(p => p.category === cat.id).length;
+              
+              return (
+                <button key={cat.id} onClick={() => setCategory(cat.id)}
+                  className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl flex-shrink-0 transition-all"
+                  style={{ backgroundColor: active ? "#F3E8FF" : "#FFFFFF", border: `1.5px solid ${active ? "#DDD6FE" : "#EDE9FE"}`, minWidth: 80 }}>
+                  <span style={{ fontSize: 18 }}>{cat.emoji}</span>
+                  <span className="text-xs font-semibold" style={{ color: active ? "#9333EA" : "#1A1A1A" }}>{cat.label}</span>
+                  <span className="text-xs" style={{ color: "#9CA3AF" }}>{realCount} Items</span>
+                </button>
+              );
+            });
+          })()}
         </div>
 
         {/* Menu Grid */}
-        <div className="flex-1 overflow-y-auto px-5 pb-5" style={{ scrollbarWidth: "thin" }}>
-          <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+        <div className="flex-1 overflow-visible lg:overflow-y-auto px-5 pb-5" style={{ scrollbarWidth: "thin" }}>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map(item => (
               <button key={item.id} onClick={() => addToCart(item)}
                 className="rounded-2xl overflow-hidden text-left transition-all hover:-translate-y-0.5 active:scale-95"
@@ -185,11 +277,11 @@ function DeliveryView() {
       </div>
 
       {/* Right Cart */}
-      <div className="flex flex-col flex-shrink-0 py-5 px-4"
-        style={{ width: 260, backgroundColor: "#FFFFFF", borderLeft: "1px solid #F0E9FF" }}>
+      <div className="flex flex-col flex-shrink-0 py-5 px-4 w-full lg:w-[260px]"
+        style={{ backgroundColor: "#FFFFFF", borderLeft: "1px solid #F0E9FF", borderTop: "1px solid #F0E9FF" }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>Delivery</span>
+            <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>{activeTable ? `Table ${activeTable.number}` : "Delivery"}</span>
             <Icons.Grid />
           </div>
         </div>
@@ -202,24 +294,34 @@ function DeliveryView() {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {cart.map(item => (
-                <div key={item.id} className="flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: "#FAF5FF" }}>
-                  <img src={item.img} alt={item.name} className="rounded-lg object-cover flex-shrink-0" style={{ width: 40, height: 40 }} />
+              {cart.map(item => {
+                const productMatch = products.find(p => p.id === item.product || p._id === item.product);
+                const itemImg = item.img || productMatch?.img;
+                return (
+                <div key={item._id || item.id} className="flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: "#FAF5FF" }}>
+                  {itemImg ? (
+                    <img src={itemImg} alt={item.name} className="rounded-lg object-cover flex-shrink-0" style={{ width: 40, height: 40 }} />
+                  ) : (
+                    <div className="rounded-lg flex items-center justify-center flex-shrink-0" style={{ width: 40, height: 40, backgroundColor: "#F3E8FF", fontSize: "20px" }}>
+                      🍽️
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold truncate" style={{ color: "#1A1A1A" }}>{item.name}</p>
                     <p className="text-xs font-bold" style={{ color: "#9333EA" }}>₹{item.price}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => updateQty(item.id, -1)}
+                    <button onClick={() => updateQty(item.product || item._id, -1)}
                       className="w-5 h-5 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: "#EDE9FE", color: "#9333EA" }}><Icons.Minus /></button>
                     <span className="text-xs font-bold w-4 text-center" style={{ color: "#1A1A1A" }}>{item.qty}</span>
-                    <button onClick={() => updateQty(item.id, 1)}
+                    <button onClick={() => updateQty(item.product || item._id, 1)}
                       className="w-5 h-5 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: "#9333EA", color: "#FFF" }}><Icons.Plus /></button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </div>
@@ -243,12 +345,30 @@ function DeliveryView() {
             <span className="text-sm font-extrabold" style={{ color: "#1A1A1A" }}>₹{total.toFixed(2)}</span>
           </div>
           {cart.length > 0 && (
-            <button className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all"
-              style={{ backgroundColor: "#9333EA", boxShadow: "0 4px 12px rgba(147,51,234,0.3)" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#7E22CE"; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#9333EA"; }}>
-              Place Order
-            </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button 
+                  onClick={handlePrintKOT}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold"
+                  style={{ backgroundColor: "#F3E8FF", color: "#9333EA", border: "1px solid #E9D5FF" }}>
+                  Print KOT
+                </button>
+                <button 
+                  onClick={handleSplitBill}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold"
+                  style={{ backgroundColor: "#FFFBEB", color: "#D97706", border: "1px solid #FEF3C7" }}>
+                  Split Bill
+                </button>
+              </div>
+              <button 
+                onClick={handlePlaceOrder}
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all"
+                style={{ backgroundColor: "#9333EA", boxShadow: "0 4px 12px rgba(147,51,234,0.3)" }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#7E22CE"; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#9333EA"; }}>
+                Complete Payment
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -257,15 +377,126 @@ function DeliveryView() {
 }
 
 // ── Dine In View ───────────────────────────────────────────────────────────
-function DineInView() {
+function DineInView({ setActiveOrder, setActiveTable, setOrderMode }) {
   const [section, setSection] = useState("all");
   const [selectedTable, setSelectedTable] = useState(null);
+  const [tables, setTables] = useState([]);
+  const [isMoving, setIsMoving] = useState(false);
+  const [showAddTable, setShowAddTable] = useState(false);
+  const [newTable, setNewTable] = useState({ name: "", seats: 4, section: "ac" });
+  const [editingTable, setEditingTable] = useState(null);
 
-  const available = ALL_TABLES.filter(t => t.status === "available").length;
-  const occupied = ALL_TABLES.filter(t => t.status === "occupied").length;
-  const reserved = ALL_TABLES.filter(t => t.status === "reserved").length;
+  useEffect(() => {
+    fetchTables();
+  }, []);
 
-  const filtered = ALL_TABLES.filter(t => {
+  const fetchTables = async () => {
+    try {
+      const res = await api.get("/tables");
+      // format for frontend: Map _id to id
+      const formatted = res.data.map(t => ({
+        ...t,
+        id: t._id,
+        number: t.name ? t.name.replace("Table ", "") : "", // Safe parsing
+        seats: t.seats || 4,
+        section: t.section || "ac"
+      }));
+      setTables(formatted);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSeatGuests = async (table) => {
+    try {
+      const res = await api.post("/orders/create", { tableId: table.id });
+      setActiveOrder(res.data);
+      setActiveTable(table);
+      setOrderMode("delivery"); // open POS
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMoveTable = async (newTable) => {
+    try {
+      // Create/Get the running order for the original table
+      const orderRes = await api.post("/orders/create", { tableId: selectedTable.id });
+      const orderId = orderRes.data._id;
+      
+      await api.post("/orders/move", { orderId, newTableId: newTable.id });
+      alert(`Order moved to Table ${newTable.number}`);
+      setIsMoving(false);
+      setSelectedTable(null);
+      fetchTables(); // Refresh table status
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddTable = async () => {
+    if (!newTable.name.trim()) return alert("Table name is required!");
+    try {
+      await api.post("/tables", {
+        name: newTable.name.startsWith("Table") ? newTable.name : `Table ${newTable.name}`,
+        seats: Number(newTable.seats),
+        section: newTable.section
+      });
+      setShowAddTable(false);
+      setNewTable({ name: "", seats: 4, section: "ac" });
+      fetchTables();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add table");
+    }
+  };
+
+  const handleEditTable = async () => {
+    if (!editingTable.name.trim()) return alert("Table name is required!");
+    try {
+      await api.put(`/tables/${editingTable.id}`, {
+        name: editingTable.name,
+        seats: Number(editingTable.seats),
+        section: editingTable.section
+      });
+      setEditingTable(null);
+      setSelectedTable(null);
+      fetchTables();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update table");
+    }
+  };
+
+  const handleToggleReserve = async (table) => {
+    try {
+      const newStatus = table.status === "reserved" ? "available" : "reserved";
+      await api.put(`/tables/${table.id}`, { status: newStatus });
+      setSelectedTable(null);
+      fetchTables();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update reservation status");
+    }
+  };
+
+  const handleDeleteTable = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this table?")) return;
+    try {
+      await api.delete(`/tables/${id}`);
+      setSelectedTable(null);
+      fetchTables();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete table");
+    }
+  };
+
+  const available = tables.filter(t => t.status === "available").length;
+  const occupied = tables.filter(t => t.status === "occupied").length;
+  const reserved = tables.filter(t => t.status === "reserved").length;
+
+  const filtered = tables.filter(t => {
     if (section === "all") return true;
     if (section === "ac") return t.section === "ac";
     if (section === "outdoor") return t.section === "outdoor";
@@ -277,10 +508,10 @@ function DineInView() {
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5" style={{ backgroundColor: "#FAF5FF" }}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-5">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-5 gap-3">
         <div>
-          <h2 className="text-2xl font-bold mb-2" style={{ color: "#1A1A1A" }}>Selected Table</h2>
-          <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold mb-2" style={{ color: "#1A1A1A" }}>Table Layout</h2>
+          <div className="flex flex-wrap items-center gap-4">
             {[
               { color: "#E5E7EB", label: "Available" },
               { color: "#3B82F6", label: "Occupied" },
@@ -294,12 +525,17 @@ function DineInView() {
             ))}
           </div>
         </div>
+        <button onClick={() => setShowAddTable(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+          style={{ backgroundColor: "#9333EA", boxShadow: "0 4px 12px rgba(147,51,234,0.25)" }}>
+          <Icons.Plus /> Add Table
+        </button>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {[
-          { label: "Available Tables", value: `${available} Of ${ALL_TABLES.length}`, sub: null, icon: <Icons.Cutlery />, progress: available / ALL_TABLES.length },
+          { label: "Available Tables", value: `${available} Of ${tables.length}`, sub: null, icon: <Icons.Cutlery />, progress: tables.length > 0 ? available / tables.length : 0 },
           { label: "Occupied Tables", value: `${occupied} Tables`, sub: "Active orders in process", icon: <Icons.Users />, progress: null },
           { label: "Reserved Tables", value: `${reserved} Tables`, sub: "Upcoming Reservations", icon: <Icons.Clock />, progress: null },
         ].map((card, i) => (
@@ -335,31 +571,38 @@ function DineInView() {
       </div>
 
       {/* Section heading + Table grid */}
-      <h3 className="text-lg font-bold mb-4" style={{ color: "#1A1A1A" }}>{sectionLabel}</h3>
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
+      <h3 className="text-xl font-bold mb-4" style={{ color: "#1A1A1A", marginLeft: "4px" }}>{sectionLabel}</h3>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
         {filtered.map(table => {
-          const sc = STATUS_COLORS[table.status];
           return (
             <button key={table.id} onClick={() => setSelectedTable(table)}
-              className="rounded-2xl p-4 text-left transition-all hover:-translate-y-0.5"
-              style={{ backgroundColor: sc.bg, border: `1.5px solid ${sc.border}`, minHeight: 110 }}>
-              <div className="flex items-start justify-between mb-2">
-                <span className="text-base font-bold" style={{ color: "#1A1A1A" }}>Table {table.number}</span>
-                {table.status === "occupied" && (
-                  <div style={{ color: "#3B82F6" }}><Icons.Users /></div>
-                )}
+              className="rounded-2xl p-5 flex flex-col items-center justify-center text-center transition-all hover:-translate-y-0.5 relative"
+              style={{ 
+                backgroundColor: "#FFFFFF", 
+                border: table.status === "reserved" ? "1px solid #FEF08A" : "1px solid #E5E7EB", 
+                minHeight: 150 
+              }}>
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <span className="text-lg font-bold" style={{ color: "#1A1A1A" }}>Table {table.number}</span>
                 {table.status === "reserved" && (
-                  <div style={{ color: "#F59E0B" }}><Icons.Clock /></div>
+                  <span style={{ color: "#EAB308" }}><Icons.Clock /></span>
                 )}
               </div>
-              <p className="text-xs mb-1" style={{ color: "#9CA3AF" }}>{table.seats} Seats</p>
-              {table.name && <p className="text-xs font-medium" style={{ color: "#4B5563" }}>{table.name}</p>}
+              <p className="text-sm mb-3" style={{ color: "#6B7280" }}>{table.seats} Seats</p>
+              
+              {table.name && <p className="text-xs mb-0.5" style={{ color: "#6B7280" }}>{table.name}</p>}
               {table.time && (
-                <p className="text-xs font-semibold" style={{ color: table.status === "reserved" ? "#F59E0B" : "#3B82F6" }}>{table.time}</p>
+                <p className="text-xs font-semibold mb-3" style={{ color: table.status === "reserved" ? "#EAB308" : "#3B82F6" }}>{table.time}</p>
               )}
-              {table.amount && (
-                <p className="text-xs font-bold mt-1" style={{ color: "#9333EA" }}>₹{table.amount.toLocaleString()}</p>
-              )}
+              
+              {/* Oval status sign */}
+              <span className="mt-auto px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wide capitalize"
+                style={{
+                  backgroundColor: table.status === "available" ? "#DCFCE7" : table.status === "occupied" ? "#FEE2E2" : "#FEF3C7",
+                  color: table.status === "available" ? "#16A34A" : table.status === "occupied" ? "#DC2626" : "#D97706",
+                }}>
+                {table.status}
+              </span>
             </button>
           );
         })}
@@ -369,31 +612,181 @@ function DineInView() {
       {selectedTable && (
         <div className="fixed inset-0 flex items-center justify-center z-50"
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-          onClick={() => setSelectedTable(null)}>
+          onClick={() => { setSelectedTable(null); setIsMoving(false); }}>
+          <div className="rounded-2xl p-6 w-80" style={{ backgroundColor: "#FFFFFF" }} onClick={e => e.stopPropagation()}>
+            {isMoving ? (
+              <>
+                <h3 className="text-lg font-bold mb-4" style={{ color: "#1A1A1A" }}>Select New Table</h3>
+                <div className="grid grid-cols-3 gap-2 mb-4 max-h-48 overflow-y-auto">
+                  {tables.filter(t => t.status === "available").map(t => (
+                    <button key={t.id} onClick={() => handleMoveTable(t)}
+                      className="py-2 rounded-lg text-sm font-semibold border transition-all"
+                      style={{ backgroundColor: "#F9FAFB", borderColor: "#E5E7EB", color: "#1A1A1A" }}>
+                      T{t.number}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => setIsMoving(false)}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                  style={{ backgroundColor: "#F3F4F6", color: "#4B5563" }}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold" style={{ color: "#1A1A1A" }}>Table {selectedTable.number}</h3>
+                  <span className="text-xs px-2 py-1 rounded-lg font-medium capitalize"
+                    style={{ backgroundColor: STATUS_COLORS[selectedTable.status].bg, color: selectedTable.status === "available" ? "#065F46" : selectedTable.status === "occupied" ? "#1E40AF" : "#92400E", border: `1px solid ${STATUS_COLORS[selectedTable.status].border}` }}>
+                    {selectedTable.status}
+                  </span>
+                </div>
+                <div className="space-y-2 text-sm mb-5" style={{ color: "#4B5563" }}>
+                  <p><span className="font-medium">Seats:</span> {selectedTable.seats}</p>
+                  <p><span className="font-medium">Section:</span> {selectedTable.section === "ac" ? "A/C Section" : "Outdoors"}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={() => handleSeatGuests(selectedTable)}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
+                    style={{ backgroundColor: "#9333EA" }}>
+                    {selectedTable.status === "available" ? "Seat Guests" : selectedTable.status === "reserved" ? "Seat Reserved Guests" : "View Order"}
+                  </button>
+                  {selectedTable.status !== "occupied" && (
+                    <button 
+                      onClick={() => handleToggleReserve(selectedTable)}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-purple-600 transition-colors hover:bg-purple-100"
+                      style={{ backgroundColor: "#F3E8FF", border: "1px solid #E9D5FF" }}>
+                      {selectedTable.status === "reserved" ? "Cancel Reservation" : "Reserve Table"}
+                    </button>
+                  )}
+                  {selectedTable.status === "occupied" && (
+                    <button 
+                      onClick={() => setIsMoving(true)}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
+                      style={{ backgroundColor: "#3B82F6" }}>
+                      Move Table
+                    </button>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditingTable({ ...selectedTable }); setSelectedTable(null); }}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                      style={{ backgroundColor: "#F3F4F6", color: "#4B5563" }}>
+                      Edit Table
+                    </button>
+                    <button onClick={() => handleDeleteTable(selectedTable.id)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
+                      style={{ backgroundColor: "#EF4444" }}>
+                      Delete
+                    </button>
+                  </div>
+                  <button onClick={() => setSelectedTable(null)}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold mt-1"
+                    style={{ backgroundColor: "#F9FAFB", color: "#9CA3AF", border: "1px solid #E5E7EB" }}>
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Table Modal */}
+      {showAddTable && (
+        <div className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          onClick={() => setShowAddTable(false)}>
           <div className="rounded-2xl p-6 w-80" style={{ backgroundColor: "#FFFFFF" }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold" style={{ color: "#1A1A1A" }}>Table {selectedTable.number}</h3>
-              <span className="text-xs px-2 py-1 rounded-lg font-medium capitalize"
-                style={{ backgroundColor: STATUS_COLORS[selectedTable.status].bg, color: selectedTable.status === "available" ? "#065F46" : selectedTable.status === "occupied" ? "#1E40AF" : "#92400E", border: `1px solid ${STATUS_COLORS[selectedTable.status].border}` }}>
-                {selectedTable.status}
-              </span>
+              <h3 className="text-lg font-bold" style={{ color: "#1A1A1A" }}>Add New Table</h3>
             </div>
-            <div className="space-y-2 text-sm mb-5" style={{ color: "#4B5563" }}>
-              <p><span className="font-medium">Seats:</span> {selectedTable.seats}</p>
-              <p><span className="font-medium">Section:</span> {selectedTable.section === "ac" ? "A/C Section" : "Outdoors"}</p>
-              {selectedTable.name && <p><span className="font-medium">Guest:</span> {selectedTable.name}</p>}
-              {selectedTable.time && <p><span className="font-medium">Time:</span> {selectedTable.time}</p>}
-              {selectedTable.amount && <p><span className="font-medium">Amount:</span> ₹{selectedTable.amount.toLocaleString()}</p>}
+            
+            <div className="space-y-4 mb-5">
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#4B5563" }}>Table Number/Name</label>
+                <input value={newTable.name} onChange={e => setNewTable({...newTable, name: e.target.value})}
+                  placeholder="e.g. 5 or Table 5"
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+                  style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#4B5563" }}>Number of Seats</label>
+                <input type="number" value={newTable.seats} onChange={e => setNewTable({...newTable, seats: e.target.value})}
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+                  style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#4B5563" }}>Section</label>
+                <select value={newTable.section} onChange={e => setNewTable({...newTable, section: e.target.value})}
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+                  style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }}>
+                  <option value="ac">A/C Section</option>
+                  <option value="outdoor">Outdoors</option>
+                </select>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
+
+            <div className="flex flex-col gap-2">
+              <button onClick={handleAddTable}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
                 style={{ backgroundColor: "#9333EA" }}>
-                {selectedTable.status === "available" ? "Seat Guests" : "View Order"}
+                Save Table
               </button>
-              <button onClick={() => setSelectedTable(null)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+              <button onClick={() => setShowAddTable(false)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold"
                 style={{ backgroundColor: "#F3F4F6", color: "#4B5563" }}>
-                Close
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Table Modal */}
+      {editingTable && (
+        <div className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          onClick={() => setEditingTable(null)}>
+          <div className="rounded-2xl p-6 w-80" style={{ backgroundColor: "#FFFFFF" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold" style={{ color: "#1A1A1A" }}>Edit Table Details</h3>
+            </div>
+            
+            <div className="space-y-4 mb-5">
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#4B5563" }}>Table Number/Name</label>
+                <input value={editingTable.name} onChange={e => setEditingTable({...editingTable, name: e.target.value})}
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+                  style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#4B5563" }}>Number of Seats</label>
+                <input type="number" value={editingTable.seats} onChange={e => setEditingTable({...editingTable, seats: e.target.value})}
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+                  style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#4B5563" }}>Section</label>
+                <select value={editingTable.section} onChange={e => setEditingTable({...editingTable, section: e.target.value})}
+                  className="w-full px-3 py-2 rounded-lg outline-none text-sm"
+                  style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }}>
+                  <option value="ac">A/C Section</option>
+                  <option value="outdoor">Outdoors</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button onClick={handleEditTable}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: "#9333EA" }}>
+                Update Table
+              </button>
+              <button onClick={() => setEditingTable(null)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: "#F3F4F6", color: "#4B5563" }}>
+                Cancel
               </button>
             </div>
           </div>
@@ -405,7 +798,7 @@ function DineInView() {
 
 // ── Take Away View ─────────────────────────────────────────────────────────
 function TakeAwayView() {
-  const [orders, setOrders] = useState(TAKEAWAY_ORDERS);
+  const [orders, setOrders] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
 
@@ -414,8 +807,8 @@ function TakeAwayView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-5" style={{ backgroundColor: "#FAF5FF" }}>
-      <div className="flex items-center justify-between mb-6">
+    <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5" style={{ backgroundColor: "#FAF5FF" }}>
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: "#1A1A1A" }}>Take Away Orders</h2>
           <p className="text-sm mt-0.5" style={{ color: "#9CA3AF" }}>Manage customer pickup orders</p>
@@ -430,7 +823,7 @@ function TakeAwayView() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[
           { label: "Total Orders", value: orders.length, color: "#9333EA" },
           { label: "Preparing", value: orders.filter(o => o.status === "preparing").length, color: "#6D28D9" },
@@ -465,9 +858,9 @@ function TakeAwayView() {
                   <p className="text-xs" style={{ color: "#9CA3AF" }}>{order.time}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <span className="text-xs" style={{ color: "#6B7280" }}>{order.items} items</span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {order.status === "pending" && (
                     <button onClick={() => updateStatus(order.id, "preparing")}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
@@ -499,7 +892,7 @@ function TakeAwayView() {
         <div className="fixed inset-0 flex items-center justify-center z-50"
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
           onClick={() => setShowForm(false)}>
-          <div className="rounded-2xl p-6 w-96" style={{ backgroundColor: "#FFFFFF" }} onClick={e => e.stopPropagation()}>
+          <div className="rounded-2xl p-6 w-full max-w-md m-4" style={{ backgroundColor: "#FFFFFF" }} onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-5" style={{ color: "#1A1A1A" }}>New Take Away Order</h3>
             <div className="flex flex-col gap-4 mb-5">
               {[
@@ -546,7 +939,9 @@ function TakeAwayView() {
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [orderMode, setOrderMode] = useState("delivery"); // "dinein" | "takeaway" | "delivery"
+  const [orderMode, setOrderMode] = useState("dinein"); // "dinein" | "takeaway" | "delivery"
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [activeTable, setActiveTable] = useState(null);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -554,23 +949,23 @@ export default function Dashboard() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top mode switcher */}
-        <div className="flex items-center justify-end gap-3 px-6 py-3 flex-shrink-0"
+        <div className="flex items-center justify-end gap-2 md:gap-3 px-4 md:px-6 py-3 flex-shrink-0 overflow-x-auto whitespace-nowrap scrollbar-hide"
           style={{ backgroundColor: "#FAF5FF", borderBottom: "1px solid #EDE9FE" }}>
           {/* Dine In */}
           <button onClick={() => setOrderMode("dinein")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-semibold transition-all"
             style={{ backgroundColor: orderMode === "dinein" ? "#9333EA" : "#FFFFFF", color: orderMode === "dinein" ? "#FFFFFF" : "#4B5563", border: "1px solid", borderColor: orderMode === "dinein" ? "#9333EA" : "#E5E7EB" }}>
             <Icons.DineIn /> Dine In
           </button>
           {/* Take Away */}
           <button onClick={() => setOrderMode("takeaway")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-semibold transition-all"
             style={{ backgroundColor: orderMode === "takeaway" ? "#9333EA" : "#FFFFFF", color: orderMode === "takeaway" ? "#FFFFFF" : "#4B5563", border: "1px solid", borderColor: orderMode === "takeaway" ? "#9333EA" : "#E5E7EB" }}>
             <Icons.TakeAway /> Take Away
           </button>
           {/* Delivery */}
           <button onClick={() => setOrderMode("delivery")}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-semibold transition-all"
             style={{ backgroundColor: orderMode === "delivery" ? "#9333EA" : "#FFFFFF", color: orderMode === "delivery" ? "#FFFFFF" : "#4B5563", border: "1px solid", borderColor: orderMode === "delivery" ? "#9333EA" : "#E5E7EB" }}>
             <Icons.Truck /> Delivery
           </button>
@@ -578,8 +973,8 @@ export default function Dashboard() {
 
         {/* View content */}
         <div className="flex-1 flex overflow-hidden">
-          {orderMode === "delivery" && <DeliveryView />}
-          {orderMode === "dinein" && <DineInView />}
+          {orderMode === "delivery" && <DeliveryView activeOrder={activeOrder} setActiveOrder={setActiveOrder} activeTable={activeTable} setActiveTable={setActiveTable} setOrderMode={setOrderMode} />}
+          {orderMode === "dinein" && <DineInView setActiveOrder={setActiveOrder} setActiveTable={setActiveTable} setOrderMode={setOrderMode} />}
           {orderMode === "takeaway" && <TakeAwayView />}
         </div>
       </div>

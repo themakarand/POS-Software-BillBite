@@ -8,7 +8,7 @@ exports.createOrder = async (req, res) => {
 
   const existing = await Order.findOne({
     table: tableId,
-    status: "running"
+    status: { $ne: "completed" }
   });
 
   if (existing) return res.json(existing);
@@ -71,6 +71,25 @@ exports.completeOrder = async (req, res) => {
   });
 
   res.json("Order completed");
+};
+
+// UPDATE STATUS (KITCHEN)
+exports.updateStatus = async (req, res) => {
+  const { orderId, status } = req.body;
+  
+  const order = await Order.findById(orderId);
+  if (!order) return res.status(404).json("Order not found");
+
+  order.status = status;
+  await order.save();
+
+  if (status === "completed" && order.table) {
+    await Table.findByIdAndUpdate(order.table, {
+      status: "available"
+    });
+  }
+
+  res.json(order);
 };
 
 // MOVE TABLE
@@ -146,6 +165,43 @@ exports.getKOT = async (req, res) => {
 
     res.json(kot);
 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json("Server Error");
+  }
+};
+
+// GET ALL ORDERS (with stats)
+exports.getOrders = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate("table", "name")
+      .sort({ createdAt: -1 });
+
+    const formattedOrders = orders.map(o => ({
+      ...o._doc,
+      table: o.table ? o.table.name : "Take Away",
+      mode: o.table ? "Dine in" : "Take Away",
+      customer_name: "Guest", // backend doesn't store this yet
+    }));
+
+    // Calculate stats
+    const totalRevenue = orders.filter(o => o.status === "completed").reduce((sum, o) => sum + (o.total || 0), 0);
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter(o => o.status !== "completed").length;
+    const completedOrders = orders.filter(o => o.status === "completed").length;
+    const averageOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    res.json({
+      orders: formattedOrders,
+      stats: {
+        totalRevenue,
+        totalOrders,
+        pendingOrders,
+        completedOrders,
+        averageOrder
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json("Server Error");

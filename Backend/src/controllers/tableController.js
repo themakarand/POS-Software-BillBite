@@ -3,8 +3,8 @@ const Table = require("../models/Table");
 // Create table
 exports.createTable = async (req, res) => {
   try {
-    const { name } = req.body;
-    const table = await Table.create({ name });
+    const { name, seats, section } = req.body;
+    const table = await Table.create({ name, seats, section });
     res.json(table);
   } catch (err) {
     res.status(500).json(err.message);
@@ -17,16 +17,36 @@ exports.getTables = async (req, res) => {
   res.json(tables);
 };
 
-// Update status
+// Update table
 exports.updateTable = async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, name, seats, section } = req.body;
 
-  const table = await Table.findByIdAndUpdate(
-    id,
-    { status },
-    { new: true }
-  );
+  try {
+    const updateData = {};
+    if (status !== undefined) updateData.status = status;
+    if (name !== undefined) updateData.name = name;
+    if (seats !== undefined) updateData.seats = seats;
+    if (section !== undefined) updateData.section = section;
 
-  res.json(table);
+    const table = await Table.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true } 
+    );
+    res.json(table);
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
+};
+
+// Delete table
+exports.deleteTable = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await Table.findByIdAndDelete(id);
+    res.json({ message: "Table deleted" });
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
 };

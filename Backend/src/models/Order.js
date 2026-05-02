@@ -9,7 +9,7 @@ const orderItemSchema = new mongoose.Schema({
 
 const orderSchema = new mongoose.Schema({
   table: { type: mongoose.Schema.Types.ObjectId, ref: "Table" },
-  status: { type: String, enum: ["running", "completed"], default: "running" },
+  status: { type: String, enum: ["pending", "running", "cooking", "completed"], default: "pending" },
   items: [orderItemSchema],
   subtotal: Number,
   gst: Number,

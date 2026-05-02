@@ -1,21 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import axios from "axios";
+import api from "../services/api";
 import Sidebar from "../components/Sidebar";
 
-const BASE = "http://localhost:5000/api";
-const authH = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
 
-/* ── Dummy KDS orders ─────────────────────────────────────────────────────── */
-const DUMMY = [
-  { _id:"KDS-001", table:"Table T2", customer:"Floyd Miles",   type:"Dine In",  status:"pending",   items:[{name:"Veg Salad",qty:1},{name:"Orange Juice",qty:2}], createdAt: new Date(Date.now()-7*60000).toISOString() },
-  { _id:"KDS-002", table:"Counter",  customer:"Walk-in",       type:"Pickup",   status:"pending",   items:[{name:"Cheese Burger",qty:2},{name:"Fries",qty:1}],    createdAt: new Date(Date.now()-4*60000).toISOString() },
-  { _id:"KDS-003", table:"Table T5", customer:"Maya Sinha",    type:"Dine In",  status:"cooking",   items:[{name:"Pasta",qty:1},{name:"Soup",qty:1}],             createdAt: new Date(Date.now()-12*60000).toISOString() },
-  { _id:"KDS-004", table:"—",        customer:"Rahul Kumar",   type:"Delivery", status:"pending",   items:[{name:"Taco",qty:3}],                                  createdAt: new Date(Date.now()-2*60000).toISOString() },
-  { _id:"KDS-005", table:"Table T1", customer:"Priya Sharma",  type:"Dine In",  status:"cooking",   items:[{name:"Grilled Chicken",qty:1},{name:"Naan",qty:2}],   createdAt: new Date(Date.now()-9*60000).toISOString() },
-  { _id:"KDS-006", table:"Counter",  customer:"Walk-in",       type:"Pickup",   status:"pending",   items:[{name:"Cold Coffee",qty:2}],                           createdAt: new Date(Date.now()-1*60000).toISOString() },
-  { _id:"KDS-007", table:"Table T3", customer:"Abhi Mehta",    type:"Dine In",  status:"completed", items:[{name:"Biryani",qty:2},{name:"Raita",qty:1}],          createdAt: new Date(Date.now()-22*60000).toISOString() },
-  { _id:"KDS-008", table:"—",        customer:"Sona Patel",    type:"Delivery", status:"completed", items:[{name:"Pizza",qty:1},{name:"Garlic Bread",qty:1}],     createdAt: new Date(Date.now()-30*60000).toISOString() },
-];
 
 const STATUS_META = {
   pending:   { label:"Pending",   bg:"#fff7ed", border:"#fed7aa", badge:"#f97316", dot:"#f97316" },
@@ -95,18 +82,18 @@ function OrderCard({ order, onStatusChange }) {
       {order.status !== "completed" && (
         <div style={{ display:"flex", gap:8, marginTop:4 }}>
           {order.status === "pending" && (
-            <button onClick={() => onStatusChange(order._id, "cooking")}
+            <button onClick={() => onStatusChange(order._rawId, "cooking")}
               style={{ flex:1, padding:"9px 0", borderRadius:10, border:"none", background:"#3b82f6", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}>
               🔥 Start Cooking
             </button>
           )}
           {order.status === "cooking" && (
-            <button onClick={() => onStatusChange(order._id, "completed")}
+            <button onClick={() => onStatusChange(order._rawId, "completed")}
               style={{ flex:1, padding:"9px 0", borderRadius:10, border:"none", background:"#16a34a", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}>
               ✓ Mark Ready
             </button>
           )}
-          <button onClick={() => onStatusChange(order._id, "completed")}
+          <button onClick={() => onStatusChange(order._rawId, "completed")}
             style={{ padding:"9px 14px", borderRadius:10, border:"1px solid #e5e7eb", background:"#fff", color:"#6b7280", fontSize:12, cursor:"pointer" }}>
             Skip
           </button>
@@ -140,7 +127,7 @@ export default function KitchenPage() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${BASE}/orders`, authH());
+      const res = await api.get("/orders");
       const data = Array.isArray(res.data) ? res.data : (res.data.orders || []);
       if (data.length === 0) throw new Error("empty");
       setOrders(data.map(o => ({
@@ -156,12 +143,19 @@ export default function KitchenPage() {
         createdAt: o.createdAt,
       })));
     } catch {
-      setOrders(DUMMY);
+      setOrders([]);
     } finally { setLoading(false); }
   };
 
-  const handleStatusChange = useCallback((id, newStatus) => {
-    setOrders(prev => prev.map(o => o._id === id ? { ...o, status: newStatus } : o));
+  const handleStatusChange = useCallback(async (rawId, newStatus) => {
+    // Optimistic UI update
+    setOrders(prev => prev.map(o => o._rawId === rawId ? { ...o, status: newStatus } : o));
+    try {
+      await api.post("/orders/update-status", { orderId: rawId, status: newStatus });
+    } catch (err) {
+      console.error("Failed to update status on server", err);
+      alert("Please restart your Backend server for this change to be permanently saved.");
+    }
   }, []);
 
   const counts = useMemo(() => ({
@@ -172,11 +166,15 @@ export default function KitchenPage() {
 
   const filtered = useMemo(() => {
     let list = orders;
-    // Live view: pending + cooking; History: completed
-    if (view === "live")    list = list.filter(o => o.status !== "completed");
-    if (view === "history") list = list.filter(o => o.status === "completed");
-    // Status filter
-    if (statusF !== "all")  list = list.filter(o => o.status === statusF);
+    
+    // Status filter overrides view defaults
+    if (statusF !== "all") {
+      list = list.filter(o => o.status === statusF);
+    } else {
+      // Live view: pending + cooking; History: completed
+      if (view === "live")    list = list.filter(o => o.status !== "completed");
+      if (view === "history") list = list.filter(o => o.status === "completed");
+    }
     // Type filter
     if (typeF !== "all")    list = list.filter(o => o.type?.toLowerCase().includes(typeF));
     // Search
@@ -224,7 +222,7 @@ export default function KitchenPage() {
       <div className="kp" style={{ flex:1, overflowY:"auto", background:"#fdf4ff", display:"flex", flexDirection:"column" }}>
 
         {/* ── Header ── */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"24px 32px 16px", flexWrap:"wrap", gap:12 }}>
+        <div className="flex justify-between items-center pr-4 pl-14 md:px-8 pt-6 pb-4 flex-wrap gap-3">
           <div>
             <h1 style={{ fontSize:24, fontWeight:700, color:"#111", margin:0, marginBottom:4 }}>Kitchen Display System</h1>
             <p style={{ fontSize:13, color:"#9ca3af", margin:0 }}>Manage incoming orders for Dine In, Pickup, and Delivery</p>
@@ -250,7 +248,7 @@ export default function KitchenPage() {
         </div>
 
         {/* ── Toolbar: Search + Type filters ── */}
-        <div className="kp-toolbar" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 32px 12px", gap:12, flexWrap:"wrap" }}>
+        <div className="kp-toolbar flex items-center justify-between px-4 md:px-8 pb-3 gap-3 flex-wrap">
           <div className="kp-search">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input placeholder="Search order here..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -264,14 +262,14 @@ export default function KitchenPage() {
         </div>
 
         {/* ── Status filters ── */}
-        <div style={{ display:"flex", gap:8, padding:"0 32px 20px", flexWrap:"wrap" }}>
+        <div className="flex gap-2 px-4 md:px-8 pb-5 flex-wrap">
           {STATUS_FILTERS.map(f => (
             <button key={f.id} className={`kp-sfb${statusF===f.id?" act":""}`} onClick={() => setStatusF(f.id)}>{f.label}</button>
           ))}
         </div>
 
         {/* ── Content ── */}
-        <div style={{ flex:1, padding:"0 32px 32px" }}>
+        <div className="flex-1 px-4 md:px-8 pb-8">
           {loading ? (
             <div style={{ textAlign:"center", padding:"80px 0", color:"#9ca3af" }}>
               <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
@@ -279,7 +277,7 @@ export default function KitchenPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div style={{ textAlign:"center", padding:"80px 0", color:"#9ca3af" }}>
-              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom:16 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 16px auto", display: "block" }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <div style={{ fontSize:17, fontWeight:600, color:"#374151", marginBottom:6 }}>No order found</div>
               <div style={{ fontSize:13, color:"#9ca3af" }}>Try adjusting the filters</div>
             </div>
@@ -294,7 +292,7 @@ export default function KitchenPage() {
 
         {/* ── Summary bar ── */}
         {!loading && orders.length > 0 && (
-          <div style={{ display:"flex", gap:20, padding:"12px 32px", background:"#fff", borderTop:"1px solid #ede9f6", flexWrap:"wrap" }}>
+          <div className="flex gap-5 px-4 md:px-8 py-3 bg-white border-t border-[#ede9f6] flex-wrap">
             {[
               { label:"Pending",   count:counts.pending,   color:"#f97316" },
               { label:"Cooking",   count:counts.cooking,   color:"#3b82f6" },

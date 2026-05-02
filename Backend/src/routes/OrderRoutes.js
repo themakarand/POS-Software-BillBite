@@ -6,9 +6,12 @@ const {
   completeOrder,
   moveTable,
   splitBill,
-  getKOT
-} = require("../controllers/orderController");
+  getKOT,
+  getOrders,
+  updateStatus
+} = require("../controllers/OrderController");
 
+router.get("/", auth, getOrders);
 router.post("/move", auth, moveTable);
 router.post("/split", auth, splitBill);
 router.get("/kot/:orderId", auth, getKOT);
@@ -16,5 +19,6 @@ router.get("/kot/:orderId", auth, getKOT);
 router.post("/create", auth, createOrder);
 router.post("/add-item", auth, addItem);
 router.post("/complete", auth, completeOrder);
+router.post("/update-status", auth, updateStatus);
 
 module.exports = router;

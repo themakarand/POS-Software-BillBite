@@ -6,6 +6,14 @@ const tableSchema = new mongoose.Schema({
     type: String,
     enum: ["available", "occupied", "reserved"],
     default: "available"
+  },
+  seats: {
+    type: Number,
+    default: 4
+  },
+  section: {
+    type: String,
+    default: "ac"
   }
 });
 

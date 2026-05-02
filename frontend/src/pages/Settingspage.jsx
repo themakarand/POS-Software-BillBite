@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 
 /* ── Settings sub-nav icons ───────────────────────────────────────────────── */
@@ -163,7 +164,7 @@ function AccountSettings() {
   const initials = form.fullName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "?";
 
   return (
-    <div style={{ flex:1, overflowY:"auto", padding:"32px 36px", background:"#fdf4ff" }}>
+    <div className="flex-1 overflow-y-auto px-4 py-6 md:p-8" style={{ background:"#fdf4ff" }}>
       {/* ── Header ── */}
       <h1 style={{ fontSize:22, fontWeight:700, color:"#111", margin:"0 0 28px" }}>Account Settings</h1>
 
@@ -205,7 +206,7 @@ function AccountSettings() {
         </div>
 
         {/* Full Name + Email */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:18 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
           <div>
             <label style={{ fontSize:13, fontWeight:600, color:"#374151", display:"block", marginBottom:7 }}>Full Name</label>
             <Input value={form.fullName} onChange={v => set("fullName", v)} placeholder="Floyd Miles" />
@@ -384,7 +385,7 @@ function NotificationsSettings() {
   ];
 
   return (
-    <div style={{ flex:1, overflowY:"auto", padding:"32px 36px", background:"#fdf4ff" }}>
+    <div className="flex-1 overflow-y-auto px-4 py-6 md:p-8" style={{ background:"#fdf4ff" }}>
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28, flexWrap:"wrap", gap:12 }}>
         <div>
@@ -507,7 +508,7 @@ function BillingSettings() {
   };
 
   return (
-    <div style={{ flex:1, overflowY:"auto", padding:"32px 36px", background:"#fdf4ff" }}>
+    <div className="flex-1 overflow-y-auto px-4 py-6 md:p-8" style={{ background:"#fdf4ff" }}>
       {/* Header */}
       <h1 style={{ fontSize:22, fontWeight:700, color:"#111", margin:"0 0 28px" }}>Billing Settings</h1>
 
@@ -776,7 +777,7 @@ function SecuritySettings() {
   };
 
   return (
-    <div style={{ flex:1, overflowY:"auto", padding:"32px 36px", background:"#fdf4ff" }}>
+    <div className="flex-1 overflow-y-auto px-4 py-6 md:p-8" style={{ background:"#fdf4ff" }}>
       {/* Header */}
       <h1 style={{ fontSize:22, fontWeight:700, color:"#111", margin:"0 0 6px" }}>Security Settings</h1>
       <p style={{ fontSize:13, color:"#9ca3af", margin:"0 0 28px" }}>Manage your security preferences and configurations</p>
@@ -1381,7 +1382,7 @@ function AppearanceSettings() {
   );
 
   return (
-    <div style={{ flex:1, overflowY:"auto", padding:"32px 36px", background:"#fdf4ff" }}>
+    <div className="flex-1 overflow-y-auto px-4 py-6 md:p-8" style={{ background:"#fdf4ff" }}>
       {/* Header */}
       <h1 style={{ fontSize:22, fontWeight:700, color:"#111", margin:"0 0 4px" }}>Settings</h1>
       <p style={{ fontSize:13, color:"#9ca3af", margin:"0 0 32px" }}>Manage your workplace preferences and system configurations</p>
@@ -1497,7 +1498,7 @@ function GeneralSettings() {
   };
 
   return (
-    <div style={{ flex:1, overflowY:"auto", padding:"32px 36px", background:"#fdf4ff" }}>
+    <div className="flex-1 overflow-y-auto px-4 py-6 md:p-8" style={{ background:"#fdf4ff" }}>
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28, flexWrap:"wrap", gap:12 }}>
         <div>
@@ -1535,7 +1536,7 @@ function GeneralSettings() {
           <Input value={form.storeName} onChange={v => set("storeName", v)} placeholder="BillBite-Downtown" prefix={<SettingsIcons.Building />} />
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label style={{ fontSize:13, fontWeight:600, color:"#374151", display:"block", marginBottom:7 }}>Contact Phone</label>
             <Input value={form.phone} onChange={v => set("phone", v)} placeholder="+1 (555) 000-0000" prefix={<SettingsIcons.Phone />} />
@@ -1555,7 +1556,7 @@ function GeneralSettings() {
         </div>
         <p style={{ fontSize:13, color:"#9ca3af", margin:"0 0 22px" }}>Set your currency, time zone and language</p>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:18 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
           <div>
             <label style={{ fontSize:13, fontWeight:600, color:"#374151", display:"block", marginBottom:7 }}>Currency</label>
             <Select value={form.currency} onChange={v => set("currency", v)} options={CURRENCIES} />
@@ -1578,7 +1579,14 @@ function GeneralSettings() {
 
 /* ── Main Settings Page ──────────────────────────────────────────────────── */
 export default function SettingsPage() {
-  const [activeSection, setActiveSection] = useState("general");
+  const location = useLocation();
+  const [activeSection, setActiveSection] = useState(location.state?.section || "general");
+
+  useEffect(() => {
+    if (location.state?.section) {
+      setActiveSection(location.state.section);
+    }
+  }, [location.state]);
 
   const renderSection = () => {
     if (activeSection === "general")       return <GeneralSettings />;
@@ -1609,7 +1617,7 @@ export default function SettingsPage() {
       <Sidebar />
 
       {/* Settings sub-nav */}
-      <div className="sp sp-settings-nav" style={{ width:220, minWidth:220, borderRight:"1px solid #f0e9ff", background:"#fff", display:"flex", flexDirection:"column", padding:"28px 14px", overflowY:"auto", flexShrink:0 }}>
+      <div className="sp sp-settings-nav pt-14 md:pt-7" style={{ width:220, minWidth:220, borderRight:"1px solid #f0e9ff", background:"#fff", display:"flex", flexDirection:"column", paddingBottom:"28px", paddingLeft:"14px", paddingRight:"14px", overflowY:"auto", flexShrink:0 }}>
         <div style={{ marginBottom:28, paddingLeft:6 }}>
           <h2 style={{ fontSize:18, fontWeight:700, color:"#111", margin:0, marginBottom:4 }}>Settings</h2>
           <p style={{ fontSize:12.5, color:"#9ca3af", margin:0 }}>Manage your preference</p>

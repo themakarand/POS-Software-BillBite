@@ -4,7 +4,11 @@ const productSchema = new mongoose.Schema({
   name: String,
   price: Number,
   category: String,
-  gst: Number
+  gst: Number,
+  img: String,
+  prepTime: Number,
+  status: String,
+  description: String
 });
 
 // ✅ IMPORTANT LINE

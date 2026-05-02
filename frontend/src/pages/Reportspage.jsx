@@ -5,24 +5,7 @@ import Sidebar from "../components/Sidebar";
 const BASE = "http://localhost:5000/api";
 const authH = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
 
-const DUMMY_HISTORY = [
-  { _id:"#1001", table:{ name:"Table T4" }, customer:"Floyd Miles",  createdAt:"2023-10-12T10:30:00", status:"completed", payment:"Cash",  total:850  },
-  { _id:"#1002", table:{ name:"Table T2" }, customer:"Maya Sinha",   createdAt:"2023-10-12T11:30:00", status:"completed", payment:"Cash",  total:1200 },
-  { _id:"#1003", table:{ name:"Table T3" }, customer:"Robert Fox",   createdAt:"2023-10-12T11:45:00", status:"running",   payment:"UPI",   total:850  },
-  { _id:"#1004", table:{ name:"Table T6" }, customer:"Abhi Mehta",   createdAt:"2023-10-12T12:45:00", status:"completed", payment:"Cash",  total:650  },
-  { _id:"#1005", table:{ name:"Table T5" }, customer:"Bessie Cooper",createdAt:"2023-10-12T13:50:00", status:"completed", payment:"Card",  total:900  },
-  { _id:"#1006", table:{ name:"Table T1" }, customer:"Davon Lane",   createdAt:"2023-10-12T14:10:00", status:"running",   payment:"Cash",  total:1350 },
-  { _id:"#1007", table:{ name:"Table T7" }, customer:"Priya Sharma", createdAt:"2023-10-12T14:30:00", status:"completed", payment:"UPI",   total:550  },
-  { _id:"#1008", table:{ name:"Table T8" }, customer:"Rahul Verma",  createdAt:"2023-10-12T15:00:00", status:"completed", payment:"Cash",  total:700  },
-];
 
-const DUMMY_TOP = [
-  { name:"Tasty Vegetable Salad", qty:42 },
-  { name:"Original Cheeseburger",  qty:38 },
-  { name:"Creamy Mushroom Soup",   qty:31 },
-  { name:"Taco Salvo With Cheese", qty:27 },
-  { name:"Fresh Orange Juice",     qty:24 },
-];
 
 function fmtDate(iso) {
   try {
@@ -78,15 +61,15 @@ export default function ReportsPage() {
       })));
       setTopItems(Array.isArray(r3.data) ? r3.data : []);
     } catch {
-      setHistory(DUMMY_HISTORY);
-      setTopItems(DUMMY_TOP);
+      setHistory([]);
+      setTopItems([]);
       setStats(null);
     } finally { setLoading(false); }
   };
 
   // Derived stats from history when API stats unavailable
   const computedStats = useMemo(() => {
-    const src = history.length ? history : DUMMY_HISTORY;
+    const src = history; // Removed DUMMY_HISTORY fallback to show true zero state
     const completed = src.filter(o => o.status === "completed");
     const revenue   = completed.reduce((s,o) => s+(o.total||0), 0);
     const avg       = completed.length ? Math.round(revenue/completed.length) : 0;
@@ -103,7 +86,7 @@ export default function ReportsPage() {
   const maxQty = topItems[0]?.qty || 1;
 
   const filtered = useMemo(() => {
-    let list = history.length ? history : DUMMY_HISTORY;
+    let list = history;
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(o =>
@@ -149,7 +132,7 @@ export default function ReportsPage() {
         @media(max-width:680px){.rp-stats{grid-template-columns:1fr 1fr!important;}}
         @media(max-width:420px){.rp-stats{grid-template-columns:1fr!important;}}
         .rp-card{background:#fff;border:1px solid #ede9f6;border-radius:14px;padding:20px 22px;display:flex;align-items:flex-start;justify-content:space-between;}
-        .rp-tbl{width:100%;border-collapse:collapse;}
+        .rp-tbl{width:100%;border-collapse:collapse;min-width:600px;}
         .rp-tbl thead tr{background:#f9fafb;}
         .rp-tbl thead th{padding:13px 18px;text-align:left;font-size:13px;font-weight:600;color:#6b7280;border-bottom:1px solid #f0edf8;white-space:nowrap;}
         .rp-tbl tbody tr{border-bottom:1px solid #faf5ff;transition:background .1s;}
@@ -167,15 +150,15 @@ export default function ReportsPage() {
         .rp-pg:hover:not(:disabled){border-color:#9333ea;color:#9333ea;}
         .rp-pg.on{background:#9333ea;border-color:#9333ea;color:#fff;}
         .rp-pg:disabled{opacity:.3;cursor:not-allowed;}
-        @media(max-width:700px){.rp-tbl th:nth-child(4),.rp-tbl td:nth-child(4){display:none;}}
-        @media(max-width:540px){.rp-tbl th:nth-child(5),.rp-tbl td:nth-child(5){display:none;}}
+        @media(max-width:700px){/* .rp-tbl th:nth-child(4),.rp-tbl td:nth-child(4){display:none;} */}
+        @media(max-width:540px){/* .rp-tbl th:nth-child(5),.rp-tbl td:nth-child(5){display:none;} */}
       `}</style>
 
       <Sidebar />
 
       <div className="rp">
         {/* Header */}
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28,flexWrap:"wrap",gap:12 }}>
+        <div className="pl-12 md:pl-0" style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28,flexWrap:"wrap",gap:12 }}>
           <div>
             <h1 style={{ fontSize:26,fontWeight:700,color:"#111",margin:0,marginBottom:4 }}>Reports &amp; Analytics</h1>
             <p style={{ fontSize:14,color:"#9ca3af",margin:0 }}>Overview of your business performance</p>
@@ -226,7 +209,7 @@ export default function ReportsPage() {
             </div>
 
             {/* Table */}
-            <div style={{ background:"#fff",borderRadius:14,overflow:"hidden",border:"1px solid #ede9f6" }}>
+            <div className="overflow-x-auto" style={{ background:"#fff",borderRadius:14,border:"1px solid #ede9f6" }}>
               {loading ? (
                 <div style={{ padding:60,textAlign:"center",color:"#9ca3af" }}>Loading…</div>
               ) : paginated.length === 0 ? (
@@ -284,7 +267,7 @@ export default function ReportsPage() {
           <div style={{ background:"#fff",border:"1px solid #ede9f6",borderRadius:14,padding:20 }}>
             <div style={{ fontSize:16,fontWeight:700,color:"#111",marginBottom:4 }}>Top Selling Items</div>
             <div style={{ fontSize:13,color:"#9ca3af",marginBottom:20 }}>Best performers this period</div>
-            {(topItems.length ? topItems : DUMMY_TOP).slice(0,8).map((item,i) => (
+            {topItems.slice(0,8).map((item,i) => (
               <div key={item.name} style={{ marginBottom:16 }}>
                 <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:8 }}>
