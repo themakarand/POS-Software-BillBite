@@ -7,7 +7,8 @@ import Sidebar from "../components/Sidebar";
 const STATUS_META = {
   pending:   { label:"Pending",   bg:"#fff7ed", border:"#fed7aa", badge:"#f97316", dot:"#f97316" },
   cooking:   { label:"Cooking",   bg:"#eff6ff", border:"#bfdbfe", badge:"#3b82f6", dot:"#3b82f6" },
-  completed: { label:"Completed", bg:"#f0fdf4", border:"#bbf7d0", badge:"#16a34a", dot:"#16a34a" },
+  ready:     { label:"Ready",     bg:"#f0fdf4", border:"#bbf7d0", badge:"#16a34a", dot:"#16a34a" },
+  completed: { label:"Completed", bg:"#f3f4f6", border:"#e5e7eb", badge:"#6b7280", dot:"#6b7280" },
 };
 
 function elapsed(iso) {
@@ -18,7 +19,7 @@ function elapsed(iso) {
 }
 
 function urgency(iso, status) {
-  if (status === "completed") return "ok";
+  if (status === "completed" || status === "ready") return "ok";
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins > 15) return "late";
   if (mins > 8)  return "warn";
@@ -40,14 +41,14 @@ function OrderCard({ order, onStatusChange }) {
   return (
     <div style={{
       background: m.bg,
-      border: `1.5px solid ${urg === "late" && order.status !== "completed" ? "#ef4444" : m.border}`,
+      border: `1.5px solid ${urg === "late" && status !== "completed" && status !== "ready" ? "#ef4444" : m.border}`,
       borderRadius: 14,
       padding: "18px 20px",
       display: "flex",
       flexDirection: "column",
       gap: 12,
       transition: "box-shadow .2s",
-      boxShadow: urg === "late" && order.status !== "completed" ? "0 0 0 2px #fecaca" : "none",
+      boxShadow: urg === "late" && status !== "completed" && status !== "ready" ? "0 0 0 2px #fecaca" : "none",
     }}>
       {/* Card Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
@@ -79,7 +80,7 @@ function OrderCard({ order, onStatusChange }) {
       </div>
 
       {/* Action buttons */}
-      {order.status !== "completed" && (
+      {order.status !== "completed" && order.status !== "ready" && (
         <div style={{ display:"flex", gap:8, marginTop:4 }}>
           {order.status === "pending" && (
             <button onClick={() => onStatusChange(order._rawId, "cooking")}
@@ -88,18 +89,18 @@ function OrderCard({ order, onStatusChange }) {
             </button>
           )}
           {order.status === "cooking" && (
-            <button onClick={() => onStatusChange(order._rawId, "completed")}
+            <button onClick={() => onStatusChange(order._rawId, "ready")}
               style={{ flex:1, padding:"9px 0", borderRadius:10, border:"none", background:"#16a34a", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}>
               ✓ Mark Ready
             </button>
           )}
-          <button onClick={() => onStatusChange(order._rawId, "completed")}
+          <button onClick={() => onStatusChange(order._rawId, "ready")}
             style={{ padding:"9px 14px", borderRadius:10, border:"1px solid #e5e7eb", background:"#fff", color:"#6b7280", fontSize:12, cursor:"pointer" }}>
             Skip
           </button>
         </div>
       )}
-      {order.status === "completed" && (
+      {(order.status === "completed" || order.status === "ready") && (
         <div style={{ textAlign:"center", fontSize:13, color:"#16a34a", fontWeight:600 }}>✓ Order Ready</div>
       )}
     </div>
@@ -138,6 +139,7 @@ export default function KitchenPage() {
         type: o.mode || "Dine In",
         status: o.status?.toLowerCase() === "pending" ? "pending"
                : o.status?.toLowerCase() === "completed" ? "completed"
+               : o.status?.toLowerCase() === "ready" ? "ready"
                : "cooking",
         items: o.items || [],
         createdAt: o.createdAt,
@@ -161,6 +163,7 @@ export default function KitchenPage() {
   const counts = useMemo(() => ({
     pending:   orders.filter(o => o.status === "pending").length,
     cooking:   orders.filter(o => o.status === "cooking").length,
+    ready:     orders.filter(o => o.status === "ready").length,
     completed: orders.filter(o => o.status === "completed").length,
   }), [orders]);
 
@@ -171,9 +174,9 @@ export default function KitchenPage() {
     if (statusF !== "all") {
       list = list.filter(o => o.status === statusF);
     } else {
-      // Live view: pending + cooking; History: completed
-      if (view === "live")    list = list.filter(o => o.status !== "completed");
-      if (view === "history") list = list.filter(o => o.status === "completed");
+      // Live view: pending + cooking; History: completed + ready
+      if (view === "live")    list = list.filter(o => o.status !== "completed" && o.status !== "ready");
+      if (view === "history") list = list.filter(o => o.status === "completed" || o.status === "ready");
     }
     // Type filter
     if (typeF !== "all")    list = list.filter(o => o.type?.toLowerCase().includes(typeF));

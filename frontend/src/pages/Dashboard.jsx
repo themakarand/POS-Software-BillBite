@@ -90,8 +90,8 @@ const ORDER_STATUS = {
 
 
 
-// ── Delivery View ──────────────────────────────────────────────────────────
-function DeliveryView({ activeOrder, setActiveOrder, activeTable, setActiveTable, setOrderMode }) {
+// ── POS View (Menu & Cart) ──────────────────────────────────────────────────
+function POSView({ activeOrder, setActiveOrder, activeTable, setActiveTable, setOrderMode }) {
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [section, setSection] = useState("all");
@@ -112,7 +112,7 @@ function DeliveryView({ activeOrder, setActiveOrder, activeTable, setActiveTable
   };
 
   const addToCart = async (item) => {
-    if (!activeOrder) return alert("Select a table first!");
+    if (!activeOrder) return alert("Select an order or table first!");
     try {
       const res = await api.post("/orders/add-item", { orderId: activeOrder._id, product: item });
       setActiveOrder(res.data);
@@ -121,19 +121,43 @@ function DeliveryView({ activeOrder, setActiveOrder, activeTable, setActiveTable
     }
   };
 
-  const updateQty = (id, delta) => {
-    // Note: updating qty is not fully supported in simple backend without custom route,
-    // we can either add another item or skip minus for now.
-    if (delta > 0) addToCart({ _id: id });
+  const updateQty = async (id, delta) => {
+    if (!activeOrder) return;
+    try {
+      if (delta > 0) {
+        // Find product object to pass to add-item
+        const item = activeOrder.items.find(i => i.product.toString() === id || i._id === id);
+        // If not already in cart, the product passed is needed. For + button, it's already in cart so we just need its ID.
+        const product = products.find(p => p.id === id || p._id === id) || { _id: id };
+        const res = await api.post("/orders/add-item", { orderId: activeOrder._id, product });
+        setActiveOrder(res.data);
+      } else if (delta < 0) {
+        const res = await api.post("/orders/remove-item", { orderId: activeOrder._id, productId: id });
+        setActiveOrder(res.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handlePlaceOrder = async () => {
     if (!activeOrder) return;
     try {
-      await api.post("/orders/complete", { orderId: activeOrder._id });
+      if (activeOrder.mode === "Take Away" || activeOrder.mode === "Delivery") {
+        // Change from "new" to "pending" to send to Kitchen
+        if (activeOrder.status === "new") {
+          await api.post("/orders/update-status", { orderId: activeOrder._id, status: "pending" });
+        }
+      } else {
+        // Dine In completes payment
+        await api.post("/orders/complete", { orderId: activeOrder._id });
+      }
       setActiveOrder(null);
       setActiveTable(null);
-      setOrderMode("dinein");
+      setOrderMode(
+        activeOrder.mode === "Take Away" ? "takeaway" : 
+        activeOrder.mode === "Delivery" ? "delivery" : "dinein"
+      );
     } catch (err) {
       console.error(err);
     }
@@ -281,7 +305,9 @@ function DeliveryView({ activeOrder, setActiveOrder, activeTable, setActiveTable
         style={{ backgroundColor: "#FFFFFF", borderLeft: "1px solid #F0E9FF", borderTop: "1px solid #F0E9FF" }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>{activeTable ? `Table ${activeTable.number}` : "Delivery"}</span>
+            <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>
+              {activeOrder?.mode === "Take Away" ? `Take Away - ${activeOrder.customer_name}` : activeTable ? `Table ${activeTable.number}` : "Menu"}
+            </span>
             <Icons.Grid />
           </div>
         </div>
@@ -366,7 +392,7 @@ function DeliveryView({ activeOrder, setActiveOrder, activeTable, setActiveTable
                 style={{ backgroundColor: "#9333EA", boxShadow: "0 4px 12px rgba(147,51,234,0.3)" }}
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#7E22CE"; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#9333EA"; }}>
-                Complete Payment
+                {activeOrder?.mode === "Take Away" ? "Send to Kitchen" : "Complete Payment"}
               </button>
             </div>
           )}
@@ -412,7 +438,7 @@ function DineInView({ setActiveOrder, setActiveTable, setOrderMode }) {
       const res = await api.post("/orders/create", { tableId: table.id });
       setActiveOrder(res.data);
       setActiveTable(table);
-      setOrderMode("delivery"); // open POS
+      setOrderMode("pos"); // open POS
     } catch (err) {
       console.error(err);
     }
@@ -797,13 +823,69 @@ function DineInView({ setActiveOrder, setActiveTable, setOrderMode }) {
 }
 
 // ── Take Away View ─────────────────────────────────────────────────────────
-function TakeAwayView() {
+function TakeAwayView({ setActiveOrder, setOrderMode }) {
   const [orders, setOrders] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
 
-  const updateStatus = (id, status) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await api.get("/orders");
+      const allOrders = res.data.orders || [];
+      const takeawayOrders = allOrders.filter(o => o.mode === "Take Away");
+      setOrders(takeawayOrders);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateStatus = async (id, status) => {
+    try {
+      await api.post("/orders/update-status", { orderId: id, status });
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePhoneChange = (val) => {
+    setForm(prev => ({ ...prev, phone: val }));
+    // Auto-fill suggestion based on past orders
+    const pastOrder = orders.find(o => o.phone === val && o.customer_name);
+    if (pastOrder) {
+      setForm(prev => ({
+        ...prev,
+        phone: val,
+        name: prev.name || pastOrder.customer_name,
+        address: prev.address || pastOrder.address || ""
+      }));
+    }
+  };
+
+  const handleCreateOrder = async () => {
+    if (!form.name) return alert("Name is required");
+    try {
+      await api.post("/orders/create", {
+        mode: "Take Away",
+        customer_name: form.name,
+        phone: form.phone,
+        address: form.address
+      });
+      setShowForm(false);
+      setForm({ name: "", phone: "", address: "" });
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSelectItems = (order) => {
+    setActiveOrder(order);
+    setOrderMode("pos");
   };
 
   return (
@@ -826,7 +908,7 @@ function TakeAwayView() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {[
           { label: "Total Orders", value: orders.length, color: "#9333EA" },
-          { label: "Preparing", value: orders.filter(o => o.status === "preparing").length, color: "#6D28D9" },
+          { label: "Preparing", value: orders.filter(o => o.status === "pending" || o.status === "cooking").length, color: "#6D28D9" },
           { label: "Ready", value: orders.filter(o => o.status === "ready").length, color: "#065F46" },
         ].map((stat, i) => (
           <div key={i} className="rounded-2xl p-4 text-center"
@@ -840,43 +922,46 @@ function TakeAwayView() {
       {/* Orders list */}
       <div className="flex flex-col gap-3">
         {orders.map(order => {
-          const st = ORDER_STATUS[order.status];
+          const st = ORDER_STATUS[order.status] || { label: order.status, bg: "#E5E7EB", text: "#4B5563" };
           return (
-            <div key={order.id} className="rounded-2xl p-4"
+            <div key={order._id} className="rounded-2xl p-4"
               style={{ backgroundColor: "#FFFFFF", border: "1px solid #EDE9FE" }}>
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>{order.name}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-lg font-medium"
-                      style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
+                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>{order.customer_name}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-lg font-medium capitalize"
+                      style={{ backgroundColor: st.bg, color: st.text }}>{st.label || order.status}</span>
                   </div>
-                  <p className="text-xs" style={{ color: "#9CA3AF" }}>{order.phone} · Order {order.id}</p>
+                  <p className="text-xs" style={{ color: "#9CA3AF" }}>{order.phone} · Order {order._id.slice(-6).toUpperCase()}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold" style={{ color: "#9333EA" }}>₹{order.amount}</p>
-                  <p className="text-xs" style={{ color: "#9CA3AF" }}>{order.time}</p>
+                  <p className="text-sm font-bold" style={{ color: "#9333EA" }}>₹{order.total || 0}</p>
+                  <p className="text-xs" style={{ color: "#9CA3AF" }}>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <span className="text-xs" style={{ color: "#6B7280" }}>{order.items} items</span>
+                <span className="text-xs" style={{ color: "#6B7280" }}>{order.items?.length || 0} items</span>
                 <div className="flex flex-wrap gap-2">
-                  {order.status === "pending" && (
-                    <button onClick={() => updateStatus(order.id, "preparing")}
+                  {order.status === "new" && (
+                    <button onClick={() => handleSelectItems(order)}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                      style={{ backgroundColor: "#9333EA" }}>Start Preparing</button>
+                      style={{ backgroundColor: "#9333EA" }}>Select Items</button>
                   )}
-                  {order.status === "preparing" && (
-                    <button onClick={() => updateStatus(order.id, "ready")}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                      style={{ backgroundColor: "#059669" }}>Mark Ready</button>
+                  {order.status === "pending" && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: "#FEF3C7", color: "#92400E" }}>Waiting for Kitchen</span>
+                  )}
+                  {order.status === "cooking" && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: "#DBEAFE", color: "#1E3A8A" }}>Kitchen is Preparing</span>
                   )}
                   {order.status === "ready" && (
-                    <button onClick={() => updateStatus(order.id, "delivered")}
+                    <button onClick={() => updateStatus(order._id, "completed")}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                      style={{ backgroundColor: "#2563EB" }}>Mark Delivered</button>
+                      style={{ backgroundColor: "#2563EB" }}>Mark Completed</button>
                   )}
-                  {order.status === "delivered" && (
+                  {order.status === "completed" && (
                     <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{ backgroundColor: "#E0F2FE", color: "#0369A1" }}>Completed</span>
                   )}
@@ -900,26 +985,235 @@ function TakeAwayView() {
                 { label: "Phone Number", key: "phone", placeholder: "Enter phone number", type: "tel" },
                 { label: "Address (optional)", key: "address", placeholder: "Pickup address if needed", type: "text" },
               ].map(field => (
-                <div key={field.key}>
+                <div key={field.key} className="relative">
                   <label className="block text-xs font-semibold mb-1.5" style={{ color: "#1A1A1A" }}>{field.label}</label>
                   <input type={field.type} value={form[field.key]} placeholder={field.placeholder}
-                    onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))}
+                    onChange={e => {
+                      if (field.key === "phone") handlePhoneChange(e.target.value);
+                      else setForm(prev => ({ ...prev, [field.key]: e.target.value }));
+                    }}
+                    list={field.key === "phone" ? "phone-suggestions" : undefined}
                     className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
                     style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }}
                     onFocus={e => { e.target.style.borderColor = "#9333EA"; e.target.style.boxShadow = "0 0 0 3px rgba(147,51,234,0.1)"; }}
                     onBlur={e => { e.target.style.borderColor = "#E5E7EB"; e.target.style.boxShadow = "none"; }} />
+                  
+                  {field.key === "phone" && (
+                    <datalist id="phone-suggestions">
+                      {Array.from(new Set(orders.filter(o => o.phone).map(o => o.phone))).map(phone => (
+                        <option key={phone} value={phone} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
               ))}
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  if (form.name) {
-                    setOrders(prev => [...prev, { id: `TA-00${prev.length + 1}`, name: form.name, phone: form.phone || "—", items: 0, amount: 0, status: "pending", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
-                    setForm({ name: "", phone: "", address: "" });
-                    setShowForm(false);
-                  }
-                }}
+                onClick={handleCreateOrder}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: "#9333EA" }}>
+                Create Order
+              </button>
+              <button onClick={() => setShowForm(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: "#F3F4F6", color: "#4B5563" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Delivery Orders View ───────────────────────────────────────────────────
+function DeliveryOrdersView({ setActiveOrder, setOrderMode }) {
+  const [orders, setOrders] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", phone: "", address: "" });
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await api.get("/orders");
+      const allOrders = res.data.orders || [];
+      const deliveryOrders = allOrders.filter(o => o.mode === "Delivery");
+      setOrders(deliveryOrders);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const updateStatus = async (id, status) => {
+    try {
+      await api.post("/orders/update-status", { orderId: id, status });
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePhoneChange = (val) => {
+    setForm(prev => ({ ...prev, phone: val }));
+    const pastOrder = orders.find(o => o.phone === val && o.customer_name);
+    if (pastOrder) {
+      setForm(prev => ({
+        ...prev,
+        phone: val,
+        name: prev.name || pastOrder.customer_name,
+        address: prev.address || pastOrder.address || ""
+      }));
+    }
+  };
+
+  const handleCreateOrder = async () => {
+    if (!form.name) return alert("Name is required");
+    if (!form.address) return alert("Delivery Address is required");
+    try {
+      await api.post("/orders/create", {
+        mode: "Delivery",
+        customer_name: form.name,
+        phone: form.phone,
+        address: form.address
+      });
+      setShowForm(false);
+      setForm({ name: "", phone: "", address: "" });
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSelectItems = (order) => {
+    setActiveOrder(order);
+    setOrderMode("pos");
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5" style={{ backgroundColor: "#FAF5FF" }}>
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+        <div>
+          <h2 className="text-2xl font-bold" style={{ color: "#1A1A1A" }}>Delivery Orders</h2>
+          <p className="text-sm mt-0.5" style={{ color: "#9CA3AF" }}>Manage home delivery orders</p>
+        </div>
+        <button onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+          style={{ backgroundColor: "#9333EA", boxShadow: "0 4px 12px rgba(147,51,234,0.25)" }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#7E22CE"; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#9333EA"; }}>
+          <Icons.Plus /> New Order
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {[
+          { label: "Total Deliveries", value: orders.length, color: "#9333EA" },
+          { label: "Preparing", value: orders.filter(o => o.status === "pending" || o.status === "cooking").length, color: "#6D28D9" },
+          { label: "Out for Delivery", value: orders.filter(o => o.status === "ready").length, color: "#065F46" },
+        ].map((stat, i) => (
+          <div key={i} className="rounded-2xl p-4 text-center"
+            style={{ backgroundColor: "#FFFFFF", border: "1px solid #EDE9FE" }}>
+            <p className="text-2xl font-bold mb-1" style={{ color: stat.color }}>{stat.value}</p>
+            <p className="text-xs" style={{ color: "#9CA3AF" }}>{stat.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {orders.map(order => {
+          const st = ORDER_STATUS[order.status] || { label: order.status, bg: "#E5E7EB", text: "#4B5563" };
+          return (
+            <div key={order._id} className="rounded-2xl p-4"
+              style={{ backgroundColor: "#FFFFFF", border: "1px solid #EDE9FE" }}>
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-bold" style={{ color: "#1A1A1A" }}>{order.customer_name}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-lg font-medium capitalize"
+                      style={{ backgroundColor: st.bg, color: st.text }}>{st.label || order.status}</span>
+                  </div>
+                  <p className="text-xs" style={{ color: "#9CA3AF" }}>{order.phone} · {order.address}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold" style={{ color: "#9333EA" }}>₹{order.total || 0}</p>
+                  <p className="text-xs" style={{ color: "#9CA3AF" }}>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span className="text-xs" style={{ color: "#6B7280" }}>{order.items?.length || 0} items</span>
+                <div className="flex flex-wrap gap-2">
+                  {order.status === "new" && (
+                    <button onClick={() => handleSelectItems(order)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                      style={{ backgroundColor: "#9333EA" }}>Select Items</button>
+                  )}
+                  {order.status === "pending" && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: "#FEF3C7", color: "#92400E" }}>Waiting for Kitchen</span>
+                  )}
+                  {order.status === "cooking" && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: "#DBEAFE", color: "#1E3A8A" }}>Kitchen is Preparing</span>
+                  )}
+                  {order.status === "ready" && (
+                    <button onClick={() => updateStatus(order._id, "completed")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                      style={{ backgroundColor: "#2563EB" }}>Mark Delivered</button>
+                  )}
+                  {order.status === "completed" && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: "#E0F2FE", color: "#0369A1" }}>Completed</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showForm && (
+        <div className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          onClick={() => setShowForm(false)}>
+          <div className="rounded-2xl p-6 w-full max-w-md m-4" style={{ backgroundColor: "#FFFFFF" }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-5" style={{ color: "#1A1A1A" }}>New Delivery Order</h3>
+            <div className="flex flex-col gap-4 mb-5">
+              {[
+                { label: "Customer Name", key: "name", placeholder: "Enter customer name", type: "text" },
+                { label: "Phone Number", key: "phone", placeholder: "Enter phone number", type: "tel" },
+                { label: "Delivery Address", key: "address", placeholder: "Enter full delivery address", type: "text" },
+              ].map(field => (
+                <div key={field.key} className="relative">
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: "#1A1A1A" }}>{field.label}</label>
+                  <input type={field.type} value={form[field.key]} placeholder={field.placeholder}
+                    onChange={e => {
+                      if (field.key === "phone") handlePhoneChange(e.target.value);
+                      else setForm(prev => ({ ...prev, [field.key]: e.target.value }));
+                    }}
+                    list={field.key === "phone" ? "phone-suggestions" : undefined}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                    style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", color: "#1A1A1A" }}
+                    onFocus={e => { e.target.style.borderColor = "#9333EA"; e.target.style.boxShadow = "0 0 0 3px rgba(147,51,234,0.1)"; }}
+                    onBlur={e => { e.target.style.borderColor = "#E5E7EB"; e.target.style.boxShadow = "none"; }} />
+                  
+                  {field.key === "phone" && (
+                    <datalist id="phone-suggestions">
+                      {Array.from(new Set(orders.filter(o => o.phone).map(o => o.phone))).map(phone => (
+                        <option key={phone} value={phone} />
+                      ))}
+                    </datalist>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCreateOrder}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
                 style={{ backgroundColor: "#9333EA" }}>
                 Create Order
@@ -973,9 +1267,10 @@ export default function Dashboard() {
 
         {/* View content */}
         <div className="flex-1 flex overflow-hidden">
-          {orderMode === "delivery" && <DeliveryView activeOrder={activeOrder} setActiveOrder={setActiveOrder} activeTable={activeTable} setActiveTable={setActiveTable} setOrderMode={setOrderMode} />}
+          {orderMode === "pos" && <POSView activeOrder={activeOrder} setActiveOrder={setActiveOrder} activeTable={activeTable} setActiveTable={setActiveTable} setOrderMode={setOrderMode} />}
           {orderMode === "dinein" && <DineInView setActiveOrder={setActiveOrder} setActiveTable={setActiveTable} setOrderMode={setOrderMode} />}
-          {orderMode === "takeaway" && <TakeAwayView />}
+          {orderMode === "takeaway" && <TakeAwayView setActiveOrder={setActiveOrder} setOrderMode={setOrderMode} />}
+          {orderMode === "delivery" && <DeliveryOrdersView setActiveOrder={setActiveOrder} setOrderMode={setOrderMode} />}
         </div>
       </div>
     </div>

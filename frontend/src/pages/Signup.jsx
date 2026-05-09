@@ -2,6 +2,9 @@ import { useState } from "react";
 import logo from "../assets/LOGO (2).png";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { useGoogleLogin } from '@react-oauth/google';
+import fbModule from '@greatsumini/react-facebook-login';
+const FacebookLogin = fbModule.default || fbModule;
 
 export default function SignUpPage() {
   const [name, setName] = useState("");
@@ -47,6 +50,49 @@ export default function SignUpPage() {
   const handleBlur = (e) => {
     e.target.style.border = "1.5px solid #E5E7EB";
     e.target.style.boxShadow = "none";
+  };
+
+  const handleSocialLogin = async (data) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await axios.post("http://localhost:5000/api/auth/social-login", data);
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.response?.data || "Social Login failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loginWithGoogle = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        const userInfo = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        handleSocialLogin({
+          email: userInfo.data.email,
+          name: userInfo.data.name,
+          providerId: userInfo.data.sub,
+          provider: "google"
+        });
+      } catch (err) {
+        setError("Failed to fetch Google profile");
+      }
+    },
+    onError: () => setError("Google Signup Failed"),
+  });
+
+  const handleFacebookSuccess = (response) => {
+    handleSocialLogin({
+      email: response.email,
+      name: response.name,
+      providerId: response.userID,
+      provider: "facebook"
+    });
   };
 
   return (
@@ -203,13 +249,13 @@ export default function SignUpPage() {
         {/* Already have an account */}
         <p className="text-center text-xs sm:text-sm mt-4 sm:mt-5" style={{ color: "#6B7280" }}>
           Already have an account?{" "}
-          <a
-            href="/login"
+          <Link
+            to="/login"
             className="font-semibold hover:opacity-70 transition-opacity"
             style={{ color: "#9333EA" }}
           >
-            <Link to="/login">Sign In</Link>
-          </a>
+            Sign In
+          </Link>
         </p>
 
         {/* Or continue with */}
@@ -222,6 +268,7 @@ export default function SignUpPage() {
             {/* Google */}
             <button
               type="button"
+              onClick={() => loginWithGoogle()}
               className="w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
               style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA" }}
               aria-label="Sign up with Google"
@@ -235,16 +282,22 @@ export default function SignUpPage() {
             </button>
 
             {/* Facebook */}
-            <button
-              type="button"
+            <FacebookLogin
+              appId="YOUR_FACEBOOK_APP_ID_HERE"
+              onSuccess={(response) => console.log('Signup Success!', response)}
+              onFail={(error) => {
+                console.log('Signup Failed!', error);
+                setError("Facebook Signup Failed");
+              }}
+              onProfileSuccess={handleFacebookSuccess}
               className="w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-              style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA" }}
+              style={{ border: "1.5px solid #E5E7EB", backgroundColor: "#FAFAFA", padding: 0 }}
               aria-label="Sign up with Facebook"
             >
               <svg width="20" height="20" viewBox="0 0 48 48">
                 <path fill="#1877F2" d="M48 24C48 10.7 37.3 0 24 0S0 10.7 0 24c0 12 8.8 21.9 20.3 23.7V30.9h-6.1V24h6.1v-5.3c0-6 3.6-9.3 9-9.3 2.6 0 5.4.5 5.4.5v5.9h-3c-3 0-3.9 1.9-3.9 3.8V24h6.6l-1.1 6.9h-5.6v16.8C39.2 45.9 48 36 48 24z" />
               </svg>
-            </button>
+            </FacebookLogin>
           </div>
         </div>
       </div>

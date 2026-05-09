@@ -9,6 +9,7 @@ import InventoryPage from "./pages/Inventorypage";
 import ReportsPage from "./pages/Reportspage";
 import KitchenPage from "./pages/Kitchenpage";
 import SettingsPage from "./pages/Settingspage";
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 /* ── Applies saved appearance to the DOM on every page load ── */
 function applyAppearance(prefs) {
@@ -100,25 +101,28 @@ export default function App() {
 
 
   return (
-    <BrowserRouter>
-      <Routes>
+    <GoogleOAuthProvider clientId="303328270738-huhj5ueoh99c3f1l62bhfu81q1dbt7qv.apps.googleusercontent.com">
+      <BrowserRouter>
+        <Routes>
 
-        {/* Default route */}
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+          {/* Default route */}
+          <Route path="/" element={<Navigate to="/dashboard" />} />
 
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/reset/:token" element={<Login />} />
 
-        {/* Protected pages */}
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/menu" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
-        <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
-        <Route path="/kitchen" element={<ProtectedRoute><KitchenPage /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      </Routes>
-    </BrowserRouter>
+          {/* Protected pages */}
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/menu" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
+          <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+          <Route path="/kitchen" element={<ProtectedRoute><KitchenPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        </Routes>
+      </BrowserRouter>
+    </GoogleOAuthProvider>
   );
 }
