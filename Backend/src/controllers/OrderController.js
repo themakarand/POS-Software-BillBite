@@ -4,7 +4,19 @@ const Table = require("../models/Table");
 
 // CREATE ORDER
 exports.createOrder = async (req, res) => {
-  const { tableId } = req.body;
+  const { tableId, mode, customer_name, phone, address } = req.body;
+
+  if (mode === "Take Away" || mode === "Delivery") {
+    const order = await Order.create({ 
+      user: req.user.id,
+      mode, 
+      customer_name, 
+      phone, 
+      address,
+      status: "new"
+    });
+    return res.json(order);
+  }
 
   const existing = await Order.findOne({
     table: tableId,
@@ -13,7 +25,7 @@ exports.createOrder = async (req, res) => {
 
   if (existing) return res.json(existing);
 
-  const order = await Order.create({ table: tableId });
+  const order = await Order.create({ user: req.user.id, table: tableId, mode: "Dine In" });
 
   await Table.findByIdAndUpdate(tableId, { status: "occupied" });
 
@@ -40,6 +52,39 @@ exports.addItem = async (req, res) => {
       qty: 1,
       price: product.price
     });
+  }
+
+  let subtotal = 0;
+  order.items.forEach(i => {
+    subtotal += i.qty * i.price;
+  });
+
+  order.subtotal = subtotal;
+  order.gst = subtotal * 0.05;
+  order.total = subtotal + order.gst;
+
+  await order.save();
+
+  res.json(order);
+};
+
+// REMOVE ITEM
+exports.removeItem = async (req, res) => {
+  const { orderId, productId } = req.body;
+
+  const order = await Order.findById(orderId);
+  if (!order) return res.status(404).json("Order not found");
+
+  const existingItemIndex = order.items.findIndex(
+    i => i.product.toString() === productId
+  );
+
+  if (existingItemIndex > -1) {
+    if (order.items[existingItemIndex].qty > 1) {
+      order.items[existingItemIndex].qty -= 1;
+    } else {
+      order.items.splice(existingItemIndex, 1);
+    }
   }
 
   let subtotal = 0;
@@ -174,15 +219,15 @@ exports.getKOT = async (req, res) => {
 // GET ALL ORDERS (with stats)
 exports.getOrders = async (req, res) => {
   try {
-    const orders = await Order.find()
+    const orders = await Order.find({ user: req.user.id })
       .populate("table", "name")
       .sort({ createdAt: -1 });
 
     const formattedOrders = orders.map(o => ({
       ...o._doc,
-      table: o.table ? o.table.name : "Take Away",
-      mode: o.table ? "Dine in" : "Take Away",
-      customer_name: "Guest", // backend doesn't store this yet
+      table: o.table ? o.table.name : (o.mode || "Take Away"),
+      mode: o.mode || (o.table ? "Dine In" : "Take Away"),
+      customer_name: o.customer_name || "Guest",
     }));
 
     // Calculate stats

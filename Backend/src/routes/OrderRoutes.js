@@ -8,7 +8,8 @@ const {
   splitBill,
   getKOT,
   getOrders,
-  updateStatus
+  updateStatus,
+  removeItem
 } = require("../controllers/OrderController");
 
 router.get("/", auth, getOrders);
@@ -18,6 +19,7 @@ router.get("/kot/:orderId", auth, getKOT);
 
 router.post("/create", auth, createOrder);
 router.post("/add-item", auth, addItem);
+router.post("/remove-item", auth, removeItem);
 router.post("/complete", auth, completeOrder);
 router.post("/update-status", auth, updateStatus);
 

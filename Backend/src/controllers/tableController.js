@@ -4,7 +4,7 @@ const Table = require("../models/Table");
 exports.createTable = async (req, res) => {
   try {
     const { name, seats, section } = req.body;
-    const table = await Table.create({ name, seats, section });
+    const table = await Table.create({ user: req.user.id, name, seats, section });
     res.json(table);
   } catch (err) {
     res.status(500).json(err.message);
@@ -13,7 +13,7 @@ exports.createTable = async (req, res) => {
 
 // Get all tables
 exports.getTables = async (req, res) => {
-  const tables = await Table.find();
+  const tables = await Table.find({ user: req.user.id });
   res.json(tables);
 };
 

@@ -2,13 +2,13 @@ const Product = require("../models/Product");
 
 // Create product
 exports.createProduct = async (req, res) => {
-  const product = await Product.create(req.body);
+  const product = await Product.create({ ...req.body, user: req.user.id });
   res.json(product);
 };
 
 // Get all
 exports.getProducts = async (req, res) => {
-  const products = await Product.find();
+  const products = await Product.find({ user: req.user.id });
   res.json(products);
 };
 

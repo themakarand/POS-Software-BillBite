@@ -1,6 +1,27 @@
 const User = require("../models/User");
+const Table = require("../models/Table");
+const Product = require("../models/Product");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
+
+const seedDefaultsForUser = async (userId) => {
+  try {
+    await Table.create([
+      { user: userId, name: "Table 1", seats: 4, section: "ac", status: "available" },
+      { user: userId, name: "Table 2", seats: 4, section: "ac", status: "available" }
+    ]);
+
+    await Product.create([
+      { user: userId, name: "Masala Chai", price: 20, category: "Beverages", gst: 5, prepTime: 5, status: "available" },
+      { user: userId, name: "Mango Shake", price: 60, category: "Beverages", gst: 5, prepTime: 5, status: "available" },
+      { user: userId, name: "Cold Coffee", price: 80, category: "Beverages", gst: 5, prepTime: 5, status: "available" }
+    ]);
+  } catch (err) {
+    console.error("Failed to seed defaults", err);
+  }
+};
 
 exports.register = async (req, res) => {
   try {
@@ -14,6 +35,8 @@ exports.register = async (req, res) => {
       password: hashedPassword,
       role
     });
+
+    await seedDefaultsForUser(user._id);
 
     res.json(user);
   } catch (err) {
@@ -36,7 +59,106 @@ exports.login = async (req, res) => {
       process.env.JWT_SECRET
     );
 
+    // Seed defaults if empty
+    const existingTable = await Table.findOne({ user: user._id });
+    if (!existingTable) {
+      await seedDefaultsForUser(user._id);
+    }
+
     res.json({ token, user });
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
+};
+
+exports.socialLogin = async (req, res) => {
+  try {
+    const { email, name, providerId, provider } = req.body;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create user if not exists
+      const randomPassword = await bcrypt.hash(providerId + process.env.JWT_SECRET, 10);
+      user = await User.create({
+        name,
+        email,
+        password: randomPassword,
+        role: "admin" // or standard user
+      });
+
+      await seedDefaultsForUser(user._id);
+    }
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET
+    );
+
+    // Seed defaults if empty
+    const existingTable = await Table.findOne({ user: user._id });
+    if (!existingTable) {
+      await seedDefaultsForUser(user._id);
+    }
+
+    res.json({ token, user });
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json("User not found");
+
+    const resetToken = crypto.randomBytes(20).toString("hex");
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    const mailOptions = {
+      to: user.email,
+      from: process.env.EMAIL_USER,
+      subject: "Password Reset Request",
+      text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n` +
+        `Please click on the following link, or paste this into your browser to complete the process:\n\n` +
+        `${process.env.FRONTEND_URL}/reset/${resetToken}\n\n` +
+        `If you did not request this, please ignore this email and your password will remain unchanged.\n`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json("Reset link sent to your email.");
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) return res.status(400).json("Password reset token is invalid or has expired.");
+
+    user.password = await bcrypt.hash(password, 10);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json("Password has been reset successfully.");
   } catch (err) {
     res.status(500).json(err.message);
   }
